@@ -772,6 +772,27 @@ export default function App() {
 
   const gerarPDF = async () => {
     try {
+      // Helper: preenche campo de texto com fonte auto-ajustada ao tamanho do campo
+      const setFieldAutoSize = (
+        form: ReturnType<InstanceType<typeof PDFDocument>['getForm']>,
+        fieldName: string,
+        value: string,
+        maxFontSize = 12,
+        minFontSize = 4
+      ) => {
+        try {
+          const field = form.getTextField(fieldName);
+          field.setText(value || '');
+          // Tenta reduzir o tamanho da fonte até o texto caber, ou usa o mínimo
+          for (let size = maxFontSize; size >= minFontSize; size--) {
+            try {
+              field.setFontSize(size);
+              break;
+            } catch (_) {}
+          }
+        } catch (_) {}
+      };
+
       // 1. Gerar Tabela de Horários Principal
       const responseMain = await fetch(TEMPLATE_PDF_URL);
       if (!responseMain.ok) throw new Error(`Não foi possível carregar 'template.pdf' (status ${responseMain.status}). Verifique se o arquivo está na pasta public/.`);
@@ -784,11 +805,8 @@ export default function App() {
       const pdfDocMain = await PDFDocument.load(bytesMain);
       const formMain = pdfDocMain.getForm();
 
-      const setFMain = (f: string, v: string) => { 
-        try { 
-          const field = formMain.getTextField(f);
-          field.setText(v || ""); 
-        } catch (e) {} 
+      const setFMain = (f: string, v: string) => {
+        setFieldAutoSize(formMain, f, v);
       };
 
       // Preencher horários da filial
@@ -818,63 +836,84 @@ export default function App() {
       const mainPdfBytes = await pdfDocMain.save();
       downloadBlob(mainPdfBytes, `Escala_${filial || 'Filial'}.pdf`);
 
-      // 2. Gerar Declarações de Transferência Individuais
+      // 2. Gerar Declarações de Transferência Individuais (uma por farmacêutico Transferido)
       const currentBranchData = getBranchInfo(filial);
+
+      // Mês atual em português
+      const MESES = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+      const mesAtual = MESES[new Date().getMonth()];
+
+      // Buscar os bytes do template de declaração apenas uma vez
+      let bytesDec: ArrayBuffer | null = null;
+      const responseDec = await fetch(DECLARACAO_PDF_URL);
+      const contentTypeDec = responseDec.headers.get('content-type') || '';
+      if (responseDec.ok && (contentTypeDec.includes('pdf') || contentTypeDec.includes('octet-stream'))) {
+        bytesDec = await responseDec.arrayBuffer();
+      }
 
       for (const f of pharmacists.slice(0, qtd)) {
         if (f.tipoInclusao === 'Transferido') {
           try {
-            let bytesDec: ArrayBuffer | null = null;
-
-            const responseDec = await fetch(DECLARACAO_PDF_URL);
-            const contentTypeDec = responseDec.headers.get('content-type') || '';
-            if (responseDec.ok && (contentTypeDec.includes('pdf') || contentTypeDec.includes('octet-stream'))) {
-              bytesDec = await responseDec.arrayBuffer();
+            if (!bytesDec) {
+              console.warn("Modelo de declaração não encontrado para o funcionário transferido.");
+              continue;
             }
 
-            if (bytesDec) {
-              const pdfDocDec = await PDFDocument.load(bytesDec);
-              const formDec = pdfDocDec.getForm();
-              
-              const setFDec = (name: string, val: string) => {
+            // Carrega uma cópia limpa do template para cada farmacêutico
+            const pdfDocDec = await PDFDocument.load(bytesDec);
+            const formDec = pdfDocDec.getForm();
+
+            const setFDec = (name: string, val: string, maxSize = 11) => {
+              setFieldAutoSize(formDec, name, val, maxSize);
+            };
+
+            // Nome do farmacêutico no campo F1_T
+            // (percorre todos os campos com esse nome para cobrir duplicatas no PDF)
+            formDec.getFields().forEach(pdfField => {
+              if (pdfField.getName() === 'F1_T') {
                 try {
-                  const field = formDec.getTextField(name);
-                  field.setText(val || "");
-                } catch (e) {}
-              };
-
-              // Fill Name in F1_T (multiple fields possible)
-              formDec.getFields().forEach(pdfField => {
-                if (pdfField.getName() === 'F1_T' && pdfField.constructor.name === 'PDFTextField') {
-                  (pdfField as any).setText(f.nome);
-                }
-              });
-
-              // CRF
-              setFDec("CRF_T", f.crf);
-
-              // Origin Address Lookup
-              const originBranchData = getBranchInfo(f.filialOrigem);
-              if (originBranchData) {
-                setFDec("END_ORIGEM", `${originBranchData.endereco}, ${originBranchData.cidade}`);
-              } else {
-                setFDec("END_ORIGEM", f.filialOrigem); // Fallback to raw input
+                  (pdfField as any).setText(f.nome || '');
+                  // Aplica tamanho de fonte reduzido para garantir enquadramento
+                  for (let size = 11; size >= 4; size--) {
+                    try { (pdfField as any).setFontSize(size); break; } catch (_) {}
+                  }
+                } catch (_) {}
               }
+            });
 
-              // Final Address Lookup
-              if (currentBranchData) {
-                setFDec("END_FINAL", `${currentBranchData.endereco}, ${currentBranchData.cidade}`);
-              } else {
-                setFDec("END_FINAL", filial); // Fallback
-              }
+            // CRF — fonte menor para garantir enquadramento correto no campo
+            setFDec('CRF_T', f.crf, 9);
 
-              const decPdfBytes = await pdfDocDec.save();
-              downloadBlob(decPdfBytes, `Declaracao_Transferencia_${f.nome.split(' ')[0]}.pdf`);
+            // Mês atual
+            setFDec('Mes', mesAtual, 11);
+
+            // Município (filialOrigem)
+            const originBranchData = getBranchInfo(f.filialOrigem);
+            const origemCidade = originBranchData ? originBranchData.cidade : f.filialOrigem;
+            setFDec('Municipio', origemCidade, 10);
+
+            // Endereço de origem (endereço + cidade da filial de origem)
+            if (originBranchData) {
+              setFDec('END_ORIGEM', `${originBranchData.endereco}, ${originBranchData.cidade}`, 9);
             } else {
-              console.warn("Modelo 'declaracao.pdf' não encontrado para o funcionário transferido.");
+              setFDec('END_ORIGEM', f.filialOrigem, 9);
             }
+
+            // Endereço final (endereço + cidade da filial destino — campo setFilial)
+            if (currentBranchData) {
+              setFDec('END_FINAL', `${currentBranchData.endereco}, ${currentBranchData.cidade}`, 9);
+            } else {
+              setFDec('END_FINAL', filial, 9);
+            }
+
+            const decPdfBytes = await pdfDocDec.save();
+            const primeiroNome = f.nome.split(' ')[0] || `F${f.id}`;
+            downloadBlob(decPdfBytes, `Declaracao_Transferencia_${primeiroNome}.pdf`);
           } catch (decErr) {
-            console.error("Erro ao gerar declaração para: " + f.nome, decErr);
+            console.error('Erro ao gerar declaração para: ' + f.nome, decErr);
           }
         }
       }
