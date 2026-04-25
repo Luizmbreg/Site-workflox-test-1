@@ -525,6 +525,8 @@ export default function App() {
   });
 
   const [showPopup, setShowPopup] = useState(false);
+  const [showDownloadPopup, setShowDownloadPopup] = useState(false);
+  const [downloadedFiles, setDownloadedFiles] = useState<string[]>([]);
 
   const [pharmacists, setPharmacists] = useState<Pharmacist[]>(
     Array.from({ length: 6 }, (_, i) => ({
@@ -780,18 +782,14 @@ export default function App() {
         form: ReturnType<InstanceType<typeof PDFDocument>['getForm']>,
         fieldName: string,
         value: string,
-        maxFontSize = 12,
+        maxFontSize = 10,
         minFontSize = 4
       ) => {
         try {
           const field = form.getTextField(fieldName);
           field.setText(value || '');
-          // Tenta reduzir o tamanho da fonte até o texto caber, ou usa o mínimo
           for (let size = maxFontSize; size >= minFontSize; size--) {
-            try {
-              field.setFontSize(size);
-              break;
-            } catch (_) {}
+            try { field.setFontSize(size); break; } catch (_) {}
           }
         } catch (_) {}
       };
@@ -884,6 +882,12 @@ export default function App() {
               setFieldAutoSize(formDec, name, val, maxSize);
             };
 
+            // Data de hoje
+            const hoje = new Date();
+            const diaAtual = String(hoje.getDate()).padStart(2, '0');
+            const mesAtual = hoje.toLocaleString('pt-BR', { month: 'long' });
+            const mesCapitalizado = mesAtual.charAt(0).toUpperCase() + mesAtual.slice(1);
+
             // Nome do farmacêutico no campo F1_T — usa f.nome (campo "Nome" da UI)
             formDec.getFields().forEach(pdfField => {
               if (pdfField.getName() === 'F1_T') {
@@ -896,44 +900,57 @@ export default function App() {
               }
             });
 
-            // CRF — fonte menor (7) para não sobrepor o texto à esquerda do campo
+            // CRF — fonte 7 para não sobrepor o texto à esquerda
             setFDec('CRF_T', f.crf, 7);
-
-            // Data de hoje: dia e mês
-            const hoje = new Date();
-            const diaAtual = String(hoje.getDate()).padStart(2, '0');
-            const MESES = [
-              'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-              'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-            ];
-            const mesAtual = MESES[hoje.getMonth()];
-
-            // Campo Dia (__ antes do campo Mês) — tenta nomes comuns do campo no PDF
-            ['Dia', 'DIA', 'dia', 'Dia_T', 'D_T'].forEach(fieldName => {
-              try {
-                setFDec(fieldName, diaAtual, 11);
-              } catch (_) {}
-            });
-            // Campo Mês
-            setFDec('Mes', mesAtual, 11);
 
             // Município da filial de origem
             const originBranchData = getBranchInfo(f.filialOrigem);
             const origemCidade = originBranchData ? originBranchData.cidade : f.filialOrigem;
-            setFDec('Municipio', origemCidade, 10);
+            // Tenta múltiplos nomes possíveis para o campo Município
+            ['Municipio', 'MUNICIPIO', 'Município', 'municipio', 'Municipio_T'].forEach(n => {
+              try { setFDec(n, origemCidade, 10); } catch (_) {}
+            });
 
-            // Endereço de origem (endereço + cidade da filial de origem)
-            if (originBranchData) {
-              setFDec('END_ORIGEM', `${originBranchData.endereco}, ${originBranchData.cidade}`, 9);
+            // Dia — tenta campos existentes; se nenhum funcionar, usa o que for encontrado por lista
+            const diaFields = formDec.getFields().map(f => f.getName());
+            const diaFieldName = diaFields.find(n =>
+              /^(dia|DIA|Dia|dia_t|Dia_T|D_T|DD)$/i.test(n)
+            );
+            if (diaFieldName) {
+              setFDec(diaFieldName, diaAtual, 10);
             } else {
-              setFDec('END_ORIGEM', f.filialOrigem, 9);
+              // Cria preenchimento via texto direto se o campo não existir com nome esperado
+              // Tenta mesmo assim com os nomes mais prováveis
+              ['Dia', 'DIA', 'dia'].forEach(n => {
+                try { setFDec(n, diaAtual, 10); } catch (_) {}
+              });
             }
 
-            // Endereço final — endereço + cidade da filial destino (campo "Filial" da UI)
-            if (currentBranchData) {
-              setFDec('END_FINAL', `${currentBranchData.endereco}, ${currentBranchData.cidade}`, 9);
+            // Mês — tenta múltiplos nomes possíveis
+            const mesFields = formDec.getFields().map(fld => fld.getName());
+            const mesFieldName = mesFields.find(n =>
+              /^(mes|MES|Mes|mês|MÊS|Mês|mes_t|Mes_T|M_T)$/i.test(n)
+            );
+            if (mesFieldName) {
+              setFDec(mesFieldName, mesCapitalizado, 10);
             } else {
-              setFDec('END_FINAL', filial, 9);
+              ['Mes', 'MES', 'mes', 'Mês'].forEach(n => {
+                try { setFDec(n, mesCapitalizado, 10); } catch (_) {}
+              });
+            }
+
+            // Endereço de origem
+            if (originBranchData) {
+              setFDec('END_ORIGEM', `${originBranchData.endereco}, ${originBranchData.cidade}`, 8);
+            } else {
+              setFDec('END_ORIGEM', f.filialOrigem, 8);
+            }
+
+            // Endereço final — endereço + cidade da filial destino
+            if (currentBranchData) {
+              setFDec('END_FINAL', `${currentBranchData.endereco}, ${currentBranchData.cidade}`, 8);
+            } else {
+              setFDec('END_FINAL', filial, 8);
             }
 
             const decPdfBytes = await pdfDocDec.save();
@@ -945,10 +962,16 @@ export default function App() {
         }
       }
 
-      alert("Processamento concluído! Verifique seus downloads.");
-      if (confirm("Assinaturas necessárias!! \n\nDirecionar para o site GOV?")) {
-        window.open("https://www.gov.br/pt-br/servicos/assinatura-eletronica?origem=maisacessado_home", "_blank");
+      // Mostrar popup unificado de conclusão
+      const filesGenerated: string[] = [`Escala_${filial || 'Filial'}.pdf`];
+      const hasTransferred = pharmacists.slice(0, qtd).some(f => f.tipoInclusao === 'Transferido');
+      if (hasTransferred) {
+        pharmacists.slice(0, qtd).filter(f => f.tipoInclusao === 'Transferido').forEach(f => {
+          filesGenerated.push(`Declaracao_Transferencia_${f.nome.split(' ')[0] || `F${f.id}`}.pdf`);
+        });
       }
+      setDownloadedFiles(filesGenerated);
+      setShowDownloadPopup(true);
     } catch (err) {
       alert("Erro ao processar PDFs: " + (err as Error).message);
     }
@@ -1398,6 +1421,79 @@ export default function App() {
               >
                 Eu compreendo e irei enviar
               </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Popup Unificado — Download Concluído + Assinatura Gov */}
+      <AnimatePresence>
+        {showDownloadPopup && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-xl">
+            <motion.div
+              initial={{ y: 60, opacity: 0, scale: 0.96 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 60, opacity: 0, scale: 0.96 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+              className="w-full max-w-sm rounded-[2rem] overflow-hidden shadow-2xl"
+              style={{ background: 'rgba(18,18,28,0.92)', border: '1px solid rgba(255,255,255,0.10)' }}
+            >
+              {/* Top pill handle (iOS style) */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-white/20"></div>
+              </div>
+
+              {/* Header icon */}
+              <div className="flex flex-col items-center pt-4 pb-2 px-6">
+                <div className="w-16 h-16 rounded-[1.2rem] bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-900/60 mb-4">
+                  <FileDown size={30} className="text-white" />
+                </div>
+                <p className="text-[11px] font-bold text-indigo-300 uppercase tracking-widest mb-1">Processamento Concluído</p>
+                <h2 className="text-[22px] font-black text-white text-center leading-tight tracking-tight">
+                  PDFs Gerados com Sucesso
+                </h2>
+              </div>
+
+              {/* File list */}
+              <div className="mx-5 my-3 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                {downloadedFiles.map((file, i) => (
+                  <div key={file} className={`flex items-center gap-3 px-4 py-3 ${i < downloadedFiles.length - 1 ? 'border-b border-white/5' : ''}`}>
+                    <div className="w-8 h-8 rounded-xl bg-indigo-500/20 flex items-center justify-center shrink-0">
+                      <CheckCircle size={16} className="text-indigo-400" />
+                    </div>
+                    <span className="text-[12px] text-slate-300 font-medium truncate">{file}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Assinatura notice */}
+              <div className="mx-5 mb-3 rounded-2xl px-4 py-3 flex items-start gap-3" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                <AlertCircle size={16} className="text-amber-400 mt-0.5 shrink-0" />
+                <p className="text-[11px] text-amber-200 leading-relaxed font-medium">
+                  Documentos gerados precisam de <strong>assinatura eletrônica</strong> via portal Gov.br antes do envio.
+                </p>
+              </div>
+
+              {/* Action buttons */}
+              <div className="px-5 pb-6 pt-1 flex flex-col gap-2">
+                <button
+                  onClick={() => {
+                    setShowDownloadPopup(false);
+                    window.open("https://www.gov.br/pt-br/servicos/assinatura-eletronica?origem=maisacessado_home", "_blank");
+                  }}
+                  className="w-full py-3.5 rounded-2xl font-black text-[13px] uppercase tracking-widest text-white transition-all active:scale-[0.97]"
+                  style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', boxShadow: '0 4px 24px rgba(99,102,241,0.35)' }}
+                >
+                  ✦ Abrir Portal Gov.br
+                </button>
+                <button
+                  onClick={() => setShowDownloadPopup(false)}
+                  className="w-full py-3.5 rounded-2xl font-bold text-[13px] text-slate-400 hover:text-white transition-all active:scale-[0.97]"
+                  style={{ background: 'rgba(255,255,255,0.06)' }}
+                >
+                  Fechar
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
