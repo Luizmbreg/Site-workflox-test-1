@@ -524,9 +524,9 @@ export default function App() {
     seg: '', ter: '', qua: '', qui: '', sex: '', sab: '', dom: ''
   });
 
-  const [showPopup, setShowPopup] = useState(false);
   const [showDownloadPopup, setShowDownloadPopup] = useState(false);
   const [downloadedFiles, setDownloadedFiles] = useState<string[]>([]);
+  const [downloadHasNewHiring, setDownloadHasNewHiring] = useState(false);
 
   const [pharmacists, setPharmacists] = useState<Pharmacist[]>(
     Array.from({ length: 6 }, (_, i) => ({
@@ -725,7 +725,7 @@ export default function App() {
     if (canGenerate && actions.inclusaoFarma) {
       const hasNewHiring = pharmacists.slice(0, qtd).some(f => f.tipoInclusao === 'Nova contratação');
       if (hasNewHiring) {
-        setShowPopup(true);
+        // Não abre popup aqui — será mostrado dentro do popup de conclusão de download
       }
     }
 
@@ -970,7 +970,9 @@ export default function App() {
           filesGenerated.push(`Declaracao_Transferencia_${f.nome.split(' ')[0] || `F${f.id}`}.pdf`);
         });
       }
+      const hasNewHiring = pharmacists.slice(0, qtd).some(f => f.tipoInclusao === 'Nova contratação');
       setDownloadedFiles(filesGenerated);
+      setDownloadHasNewHiring(hasNewHiring);
       setShowDownloadPopup(true);
     } catch (err) {
       alert("Erro ao processar PDFs: " + (err as Error).message);
@@ -1396,36 +1398,6 @@ export default function App() {
         </section>
       </div>
 
-      {/* Nova Contratação Popup */}
-      <AnimatePresence>
-        {showPopup && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="max-w-md w-full glass-panel rounded-3xl p-8 border-2 border-indigo-400/30 shadow-2xl space-y-6 text-center"
-            >
-              <div className="w-16 h-16 bg-indigo-500 rounded-2xl mx-auto flex items-center justify-center animate-bounce">
-                <AlertCircle size={32} className="text-white" />
-              </div>
-              <h2 className="text-xl font-black text-white uppercase tracking-tighter leading-tight">Aviso de Inclusão Profissional</h2>
-              <div className="p-4 bg-white/5 rounded-xl border border-white/10">
-                <p className="text-sm font-bold text-indigo-200 uppercase leading-relaxed tracking-wide">
-                  NECESSÁRIO ENVIO DA CARTEIRA DE TRABALHO DIGITAL E CONTRATO INTERNO DO FARMACÊUTICO CONTRATADO
-                </p>
-              </div>
-              <button 
-                onClick={() => setShowPopup(false)}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-indigo-900/40 uppercase tracking-widest text-xs"
-              >
-                Eu compreendo e irei enviar
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
       {/* Popup Unificado — Download Concluído + Assinatura Gov */}
       <AnimatePresence>
         {showDownloadPopup && (
@@ -1473,6 +1445,16 @@ export default function App() {
                   Documentos gerados precisam de <strong>assinatura eletrônica</strong> via portal Gov.br antes do envio.
                 </p>
               </div>
+
+              {/* CTPS warning — só aparece se houver Nova Contratação */}
+              {downloadHasNewHiring && (
+                <div className="mx-5 mb-3 rounded-2xl px-4 py-3 flex items-start gap-3" style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)' }}>
+                  <UserPlus size={16} className="text-indigo-400 mt-0.5 shrink-0" />
+                  <p className="text-[11px] text-indigo-200 leading-relaxed font-medium">
+                    Nova contratação detectada — necessário envio da <strong>Carteira de Trabalho Digital</strong> e <strong>Contrato Interno</strong> do farmacêutico contratado.
+                  </p>
+                </div>
+              )}
 
               {/* Action buttons */}
               <div className="px-5 pb-6 pt-1 flex flex-col gap-2">
