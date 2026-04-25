@@ -31,6 +31,7 @@ interface Pharmacist {
   id: number;
   nome: string;
   cpf: string;
+  crf: string; // New field
   dataNascimento: string;
   tipoInclusao: 'Já vinculado' | 'Nova contratação' | 'Transferido';
   filialOrigem: string;
@@ -51,6 +52,237 @@ interface BaixaDetails {
   motivo: 'Desligamento' | 'Transferência';
   filialDestino: string;
 }
+
+const FILIAIS: Record<string, { cidade: string; endereco: string }> = {
+  "1": { cidade: "PORTO ALEGRE", endereco: "R. Dr. Flores, 194" },
+  "2": { cidade: "PORTO ALEGRE", endereco: "Rua Ramiro Barcelos, nº 910, bloco E" },
+  "4": { cidade: "PORTO ALEGRE", endereco: "Av. Borges de Medeiros, 589- e 595" },
+  "5": { cidade: "PORTO ALEGRE", endereco: "Av. Azenha, 693" },
+  "7": { cidade: "PORTO ALEGRE", endereco: "Av. Azenha, 1.401" },
+  "8": { cidade: "PORTO ALEGRE", endereco: "Av. Assis Brasil, 1983" },
+  "9": { cidade: "PORTO ALEGRE", endereco: "Av. Protásio Alves, 2640" },
+  "10": { cidade: "PORTO ALEGRE", endereco: "Rua dos Andradas, 1238" },
+  "11": { cidade: "PORTO ALEGRE", endereco: "Rua dos Andradas, 1401" },
+  "12": { cidade: "PORTO ALEGRE", endereco: "Av. Venâncio Aires, 1102" },
+  "13": { cidade: "PORTO ALEGRE", endereco: "Rua João Wallig, 1800 Lj. JW 13-Iguatemi" },
+  "15": { cidade: "PORTO ALEGRE", endereco: "Av. Borges de Medeiros, 255" },
+  "17": { cidade: "PORTO ALEGRE", endereco: "Av. Cristóvão Colombo, 2110" },
+  "19": { cidade: "PORTO ALEGRE", endereco: "Avenida São Pedro, 577" },
+  "20": { cidade: "PORTO ALEGRE", endereco: "Av. João Pessoa, 1831 – Lj. 1A - 202/203" },
+  "21": { cidade: "PORTO ALEGRE", endereco: "Rua Vinte e Quatro de Outubro, 742" },
+  "23": { cidade: "PORTO ALEGRE", endereco: "Av. Plínio Brasil Milano, 1000" },
+  "25": { cidade: "PORTO ALEGRE", endereco: "Av. São Pedro, 878 – São Geraldo" },
+  "28": { cidade: "PORTO ALEGRE", endereco: "Av. Getúlio Vargas, n° 480" },
+  "29": { cidade: "PORTO ALEGRE", endereco: "Rua Ramiro Barcelos, 1115" },
+  "30": { cidade: "SÃO SEBASTIÃO DO CAI", endereco: "Avenida Egidio Michaelsen, 477, bairro Centro" },
+  "31": { cidade: "PORTO ALEGRE", endereco: "Avenida Protásio Alves, 4194 - subsolo" },
+  "34": { cidade: "SAO LEOPOLDO", endereco: "Rua Independência, 424" },
+  "35": { cidade: "SANTA CRUZ DO SUL", endereco: "Rua Marechal Floriano, 863" },
+  "36": { cidade: "BAGE", endereco: "Av. Sete de Setembro, 1121" },
+  "37": { cidade: "SANTA VITORIA DO PALMAR", endereco: "Rua Barão do Rio Branco, 439" },
+  "38": { cidade: "PORTO ALEGRE", endereco: "Av. Cavalhada, 2955" },
+  "40": { cidade: "URUGUAIANA", endereco: "Rua Duque de Caxias, 1625" },
+  "41": { cidade: "CRUZ ALTA", endereco: "Avenida General Osório, 150, bairro Centro" },
+  "43": { cidade: "PORTO ALEGRE", endereco: "Av. Assis Brasil, 3522" },
+  "44": { cidade: "PORTO ALEGRE", endereco: "Av. Teresópolis, 3126" },
+  "45": { cidade: "PORTO ALEGRE", endereco: "Av. Protásio Alves, 723" },
+  "47": { cidade: "ALVORADA", endereco: "Avenida Presidente Vargas, nº 1957" },
+  "48": { cidade: "PORTO ALEGRE", endereco: "Rua Zeca Neto, 38" },
+  "50": { cidade: "ALEGRETE", endereco: "Rua Gaspar Martins, 322" },
+  "51": { cidade: "BAGE", endereco: "Rua Monsenhor Hipólito, 02 Lj 01" },
+  "52": { cidade: "PELOTAS", endereco: "Rua Andrade Neves, 1881" },
+  "53": { cidade: "CACHOEIRA DO SUL", endereco: "Rua Júlio de Castilhos, 102" },
+  "54": { cidade: "CAMAQUA", endereco: "Av. Presidente Vargas, 447" },
+  "56": { cidade: "CARAZINHO", endereco: "Av. Flores da Cunha, 1421" },
+  "57": { cidade: "CAXIAS DO SUL", endereco: "Av. Júlio de Castilhos, 1970" },
+  "58": { cidade: "CRUZ ALTA", endereco: "Rua Duque de Caxias, 645 sala 03" },
+  "59": { cidade: "CAPAO DA CANOA", endereco: "Av. Paraguassú, 2696" },
+  "60": { cidade: "IJUI", endereco: "Rua XV de Novembro, 386" },
+  "61": { cidade: "SANTANA DO LIVRAMENTO", endereco: "Rua dos Andradas, 485" },
+  "62": { cidade: "SANTANA DO LIVRAMENTO", endereco: "Rua dos Andradas, 51" },
+  "63": { cidade: "PELOTAS", endereco: "Av. General Osório, 1052" },
+  "64": { cidade: "RIO GRANDE", endereco: "Rua Marechal Floriano Peixoto, 351" },
+  "65": { cidade: "ROSARIO DO SUL", endereco: "R JOAO BRASIL, 831" },
+  "66": { cidade: "SANTO ANGELO", endereco: "Rua Marquês do Herval, 1583" },
+  "67": { cidade: "SANTA MARIA", endereco: "Rua Acampamento, 150" },
+  "68": { cidade: "SAO LOURENCO DO SUL", endereco: "Rua Coronel Alfredo Born, 317" },
+  "70": { cidade: "SANTIAGO", endereco: "Rua Getúlio Vargas, 1851" },
+  "71": { cidade: "FARROUPILHA", endereco: "R Pinheiro Machado, 195 - Sala 02" },
+  "72": { cidade: "SÃO BORJA", endereco: "Rua General Osório, 2160" },
+  "73": { cidade: "SAO LUIZ GONZAGA", endereco: "Av. Sen. Pinheiro Machado, 2476" },
+  "74": { cidade: "URUGUAIANA", endereco: "Rua Domingos de Almeida, 1946" },
+  "75": { cidade: "VACARIA", endereco: "Rua Borges de Medeiros, 1313" },
+  "77": { cidade: "DOM PEDRITO", endereco: "Av. Rio Branco, 844" },
+  "78": { cidade: "BENTO GONCALVES", endereco: "Rua Marechal Deodoro, 17" },
+  "79": { cidade: "ITAQUI", endereco: "Avenida Humberto de Alencar Castelo Branco, nº 1044" },
+  "80": { cidade: "TAQUARA", endereco: "Rua Júlio de Castilhos, 2594" },
+  "81": { cidade: "TRES PASSOS", endereco: "Av. Júlio de Castilhos, 788" },
+  "82": { cidade: "TRAMANDAI", endereco: "Av. Emancipação, 161" },
+  "83": { cidade: "TORRES", endereco: "Avenida Barão do Rio Branco, nº 235, bairro Centro" },
+  "84": { cidade: "SANTA ROSA", endereco: "Av. Rio Branco, 447" },
+  "85": { cidade: "PALMEIRA DAS MISSOES", endereco: "Av. Independência, 1112" },
+  "87": { cidade: "PORTO ALEGRE", endereco: "Av. Venâncio Aires, 399, Loja 01" },
+  "88": { cidade: "SANTO ANGELO", endereco: "Rua Marquês do Herval, 1118" },
+  "91": { cidade: "PELOTAS", endereco: "Rua Santos Dumont, 856" },
+  "92": { cidade: "PELOTAS", endereco: "Rua Quinze de Novembro , 454" },
+  "93": { cidade: "PELOTAS", endereco: "Rua Santos Dumont, 487" },
+  "94": { cidade: "RIO GRANDE", endereco: "Rua Luiz Lórea, 502" },
+  "95": { cidade: "RIO GRANDE", endereco: "Rua 24 de Maio, 400/402" },
+  "96": { cidade: "JAGUARAO", endereco: "Rua 27 de Janeiro, 408" },
+  "97": { cidade: "PELOTAS", endereco: "Rua Andrade Neves, 1575" },
+  "98": { cidade: "PELOTAS", endereco: "Av. Bento Gonçalves, 3331" },
+  "141": { cidade: "PORTO ALEGRE", endereco: "Av. Doutor Nilo Peçanha, 1737" },
+  "142": { cidade: "PORTO ALEGRE", endereco: "Rua Santa Cecília, 1269 – Lj 01" },
+  "144": { cidade: "CAPAO DA CANOA", endereco: "Av. Paraguassú, 4048 - Lj 03" },
+  "146": { cidade: "IMBE", endereco: "Avenida Paraguassú, nº 1.474, bairro Centro" },
+  "149": { cidade: "RIO PARDO", endereco: "Rua Andrade Neves, 626" },
+  "151": { cidade: "PORTO ALEGRE", endereco: "Rua Múcio Teixeira, 680 – Lj 103/104" },
+  "153": { cidade: "PORTO ALEGRE", endereco: "Rua Olavo Barreto Viana, 36 – Lj 126" },
+  "157": { cidade: "PASSO FUNDO", endereco: "Rua Uruguai, 1620 – Salas 212/213" },
+  "159": { cidade: "RIO GRANDE", endereco: "Av. Rio Grande, 162" },
+  "160": { cidade: "GRAVATAÍ", endereco: "Av. José Loureiro da Silva, 1504" },
+  "161": { cidade: "PORTO ALEGRE", endereco: "Avenida Assis Brasil, nº 164 – SUC 61 e 62" },
+  "163": { cidade: "PORTO ALEGRE", endereco: "Av. João Wallig, 1903" },
+  "164": { cidade: "PORTO ALEGRE", endereco: "Av. Carlos Gomes, 11 – Lj 03" },
+  "165": { cidade: "PORTO ALEGRE", endereco: "Av. Ipiranga, 6690 - Bl 02/Prédio 60/Térreo" },
+  "166": { cidade: "PORTO ALEGRE", endereco: "Av. Túlio de Rose, 80 – Loja 129 e 130" },
+  "167": { cidade: "PORTO ALEGRE", endereco: "Av. Otto Niemeyer, 2500 - Lojas 103 e 104" },
+  "168": { cidade: "PORTO ALEGRE", endereco: "Avenida Mostardeiro, 287" },
+  "170": { cidade: "NOVO HAMBURGO", endereco: "Rua 1º de Março, 1111 – Lj 03" },
+  "171": { cidade: "PORTO ALEGRE", endereco: "Av. Cavalhada, 3621 – LJ 01" },
+  "173": { cidade: "CAXIAS DO SUL", endereco: "Avenida Júlio de Castilhos, nº 2.234, loja 1" },
+  "175": { cidade: "CANOAS", endereco: "Rua Quinze de Janeiro, nº 481, salas 214-3 / 214-4 / 214-5" },
+  "176": { cidade: "ERECHIM", endereco: "Av. Maurício Cardoso, 17" },
+  "178": { cidade: "ESTEIO", endereco: "R Padre Felipe, 257" },
+  "179": { cidade: "MARAU", endereco: "Rua Julio Borella, 1067 – Sala 102" },
+  "181": { cidade: "CANOAS", endereco: "Rua Tiradentes, 291" },
+  "182": { cidade: "PORTO ALEGRE", endereco: "Av. Cristóvão Colombo, 545 – Lj 1224 – Sh Total" },
+  "183": { cidade: "PORTO ALEGRE", endereco: "Av. Independência, 155 – Sala 02" },
+  "184": { cidade: "PORTO ALEGRE", endereco: "Rua Otto Niemayer, 601 – Tristeza" },
+  "186": { cidade: "PORTO ALEGRE", endereco: "Av. Juca Batista, 925 – Lj 101" },
+  "187": { cidade: "ESTRELA", endereco: "R RUA TIRADENTES, 248" },
+  "188": { cidade: "NOVO HAMBURGO", endereco: "Av. Pedro Adans Filho, 5573" },
+  "189": { cidade: "GAROPABA", endereco: "Rua Prefeito João Araújo, 601 – sala 02" },
+  "190": { cidade: "CAXIAS DO SUL", endereco: "Rua Vinte de Setembro, 2352 – Lurdes" },
+  "191": { cidade: "FLORIANOPOLIS", endereco: "Avenida das Nações, nº 342" },
+  "192": { cidade: "PORTO ALEGRE", endereco: "Av. Wenceslau Escobar, 2857 Lj 04" },
+  "193": { cidade: "TRAMANDAI", endereco: "Av. Emancipação, 898 – Lj ¾ - Praia" },
+  "194": { cidade: "CIDREIRA", endereco: "Av. Mostardeiros, 3213 – Salas 1 e 2" },
+  "195": { cidade: "SANTA MARIA", endereco: "Av. Presidente Vargas, 2194" },
+  "196": { cidade: "TAPES", endereco: "Av. Assis Brasil, 412" },
+  "197": { cidade: "QUARAI", endereco: "Avenida Sete de Setembro, nº 775" },
+  "199": { cidade: "CAXIAS DO SUL", endereco: "Rua Borges de Medeiros, 391– Lj 3/4" },
+  "301": { cidade: "CAXIAS DO SUL", endereco: "Rodovia RSC 453, KM 3,5 - nº 2780, loja 159" },
+  "302": { cidade: "RIO GRANDE", endereco: "Av. Rio Grande, 251" },
+  "303": { cidade: "RIO GRANDE", endereco: "Avenida Presidente Vargas, 687" },
+  "304": { cidade: "RIO GRANDE", endereco: "Rua Doutor Nascimento, 389, 391 e 399" },
+  "124": { cidade: "XANGRILA", endereco: "Av. Paraguassú, 4561" },
+  "306": { cidade: "XANGRILA", endereco: "Av. Paraguassú, 1214, Loja 1" },
+  "307": { cidade: "PORTO ALEGRE", endereco: "Av. Assis Brasil, 2611 - Sala 102" },
+  "308": { cidade: "PORTO ALEGRE", endereco: "Rua José de Alencar, nº 286, Sala 05, bairro Menino Deus" },
+  "309": { cidade: "PELOTAS", endereco: "Avenida Dom Joaquim, 680" },
+  "310": { cidade: "PORTO ALEGRE", endereco: "Rua Vicente da Fontoura, 2759" },
+  "311": { cidade: "PORTO ALEGRE", endereco: "Rua Casemiro de Abreu, 1755 - e 1775" },
+  "312": { cidade: "PORTO ALEGRE", endereco: "Rua Marquês do pombal, 565 - Moinhos de Vento" },
+  "313": { cidade: "PORTO ALEGRE", endereco: "Avenida Wenceslau Escobar, 1933 - Cristal" },
+  "314": { cidade: "PELOTAS", endereco: "Rua Visconde de Ouro Preto, 46 - Areal" },
+  "315": { cidade: "OSORIO", endereco: "Av. Paraguassú, 444" },
+  "319": { cidade: "SANTA CRUZ DO SUL", endereco: "Rua Thomaz Flores, 206" },
+  "320": { cidade: "FLORIANOPOLIS", endereco: "Rua Frei Caneca, 530" },
+  "321": { cidade: "PELOTAS", endereco: "Avenida Ferreira Viana, 1526 - Lojas 4, 5 e 6" },
+  "322": { cidade: "PORTO ALEGRE", endereco: "Avenida Guaporé, nº 324" },
+  "323": { cidade: "PORTO ALEGRE", endereco: "Avenida Cristóvão Colombo, 2999" },
+  "324": { cidade: "PORTO ALEGRE", endereco: "Avenida Protásio Alves, 2121" },
+  "325": { cidade: "NOVO HAMBURGO", endereco: "Rua Bento Gonçalves, 2917 - Lojas 1 e 2" },
+  "326": { cidade: "PORTO ALEGRE", endereco: "Avenida Nilo Peçanha, 3200 - Lojas 48 e 49" },
+  "327": { cidade: "SANTA MARIA", endereco: "Avenida Rio Branco, n° 533" },
+  "328": { cidade: "FLORIANOPOLIS", endereco: "Avenida Prefeito Osmar Cunha, 313" },
+  "330": { cidade: "PORTO ALEGRE", endereco: "Avenida Nilo Peçanha, 95 - Loja A" },
+  "332": { cidade: "SÃO JOSÉ", endereco: "Rod. BR 101, KM 211, Esq. SC 407 - Ljs 84, 106 e 107" },
+  "333": { cidade: "SAO LEOPOLDO", endereco: "Avenida João Correa, 532" },
+  "334": { cidade: "BALNEÁRIO PINHAL", endereco: "Rua Humberto de Alencar Castelo Branco, 374 - Ljs 3 e 4" },
+  "335": { cidade: "SANTA MARIA", endereco: "Rua General Neto, 1097" },
+  "336": { cidade: "CAXIAS DO SUL", endereco: "Avenida Rio Branco, 425 - Lojas 102 e 103" },
+  "337": { cidade: "PELOTAS", endereco: "Avenida Dom Joaquim, nº 603 - Loja 1" },
+  "338": { cidade: "PASSO FUNDO", endereco: "Rua Quinze de Novembro, 318" },
+  "340": { cidade: "OSORIO", endereco: "Avenida Getúlio Vargas, nº 525" },
+  "341": { cidade: "CAPAO DA CANOA", endereco: "Av. Paraguassú, 2786" },
+  "343": { cidade: "PORTO ALEGRE", endereco: "Rua Valparaíso, 698" },
+  "344": { cidade: "PORTO ALEGRE", endereco: "Av. Plínio Brasil Milano, 1689 - Loja 101" },
+  "345": { cidade: "PELOTAS", endereco: "Rua Gonçalves Chaves, 2920" },
+  "346": { cidade: "BAGE", endereco: "Avenida Tupy Silveira, 1887 - Sala 01" },
+  "347": { cidade: "PORTO ALEGRE", endereco: "Avenida Edgar Pires de Castro, 1395" },
+  "348": { cidade: "ARROIO GRANDE", endereco: "Rua Visconde de Mauá, 431" },
+  "349": { cidade: "PORTO ALEGRE", endereco: "Avenida Doutor Nilo Peçanha, 690" },
+  "350": { cidade: "PORTO ALEGRE", endereco: "Rua dos Andradas, 1480" },
+  "351": { cidade: "PORTO ALEGRE", endereco: "Avenida Juca Batista, 4255 - SUC 128" },
+  "352": { cidade: "URUGUAIANA", endereco: "Rua Quinze de Novembro, 2.755" },
+  "353": { cidade: "CAXIAS DO SUL", endereco: "Rua Tronca, 2730" },
+  "354": { cidade: "SANTA ROSA", endereco: "Avenida Expedicionário Weber, 805" },
+  "355": { cidade: "TORRES", endereco: "Rua Bento Gonçalves, 81" },
+  "356": { cidade: "IJUI", endereco: "Rua Doutor Pestana, 20" },
+  "357": { cidade: "PORTO ALEGRE", endereco: "Rua Paraguai, 100 loja 104 , Rio Branco" },
+  "358": { cidade: "CAXIAS DO SUL", endereco: "Rua Professor Marcos Martini, 480" },
+  "359": { cidade: "SANTA MARIA", endereco: "Avenida Nossa Senhora Medianeira, 1318" },
+  "360": { cidade: "URUGUAIANA", endereco: "Avenida Presidente Getúlio Vargas, 3307" },
+  "361": { cidade: "CARLOS BARBOSA", endereco: "Rua Buarque de Macedo, 3867" },
+  "362": { cidade: "ESTEIO", endereco: "Avenida Presidente Vargas, 2358 - Lojas 1 e 2" },
+  "363": { cidade: "CAPAO DA CANOA", endereco: "Rua Sepé, 1931" },
+  "364": { cidade: "GRAMADO", endereco: "Avenida das Hortênsias, nº 3.860" },
+  "365": { cidade: "CANGUÇU", endereco: "Rua General Osório, 1099" },
+  "366": { cidade: "GRAMADO", endereco: "Av. das Hortênsias, 1929 - Loja 101" },
+  "367": { cidade: "PELOTAS", endereco: "Avenida Ferreira Viana, nº 476" },
+  "368": { cidade: "TRAMANDAI", endereco: "Rua Rubem Berta, 1445" },
+  "369": { cidade: "PORTO ALEGRE", endereco: "Avenida do Forte, 1396 - Loja 1" },
+  "370": { cidade: "GUAIBA", endereco: "Rua Sete de Setembro, 360" },
+  "371": { cidade: "DOIS IRMÃOS", endereco: "Avenida 25 de Julho, nº 785" },
+  "373": { cidade: "VACARIA", endereco: "Rua Julio de Castilhos, nº 1.063" },
+  "374": { cidade: "PORTO ALEGRE", endereco: "Rua Santana, nº 1501, loja 1" },
+  "375": { cidade: "LAJEADO", endereco: "Avenida Benjamin Constant, nº 1.707" },
+  "376": { cidade: "PORTO ALEGRE", endereco: "Avenida Cavalhada, nº 2351, 2369 e 2373" },
+  "378": { cidade: "PORTO ALEGRE", endereco: "Av. Teresópolis, 3487" },
+  "379": { cidade: "FLORES DA CUNHA", endereco: "Rua Borges de Medeiros, nº 1.461, salas 01 e 02" },
+  "380": { cidade: "BLUMENAU", endereco: "Rua São Paulo, nº 85, loja 2" },
+  "381": { cidade: "CRICIÚMA", endereco: "Rua Marechal Deodoro, nº 177" },
+  "382": { cidade: "GRAVATAÍ", endereco: "Avenida Dorival Cândido Luz de Oliveira, nº 680" },
+  "383": { cidade: "PORTO ALEGRE", endereco: "Rua Vinte e Quatro de Outubro, 1.465" },
+  "384": { cidade: "IVOTI", endereco: "Avenida Presidente Lucena, nº 3.040, loja 03" },
+  "385": { cidade: "CRICIÚMA", endereco: "Avenida Jorge Elias De Lucca, nº 765, lojas 115 e 116" },
+  "386": { cidade: "CAXIAS DO SUL", endereco: "Rua General Malett, 56" },
+  "387": { cidade: "CANOAS", endereco: "Avenida Farroupilha, nº 4.545, loja 2.078, Pavimento L2" },
+  "389": { cidade: "ELDORADO DO SUL", endereco: "Avenida Getulio Vargas, 274" },
+  "390": { cidade: "LAGOA VERMELHA", endereco: "Av. Afonso Pena, 630 sala 14" },
+  "391": { cidade: "GAROPABA", endereco: "Rua João Orestes de Araújo, nº 1.253" },
+  "392": { cidade: "PORTO ALEGRE", endereco: "Avenida Panamericana, 670" },
+  "393": { cidade: "MONTENEGRO", endereco: "Rua José Luiz, nº 1.485," },
+  "394": { cidade: "IBIRUBA", endereco: "Rua General Osório, nº 878, sala 01," },
+  "395": { cidade: "PASSO FUNDO", endereco: "Avenida Presidente Vargas, 1610 lojas 2004,2005,2006 e 2007" },
+  "396": { cidade: "SÃO BORJA", endereco: "Rua General Marques, nº 902, Loja 1" },
+  "397": { cidade: "PORTO ALEGRE", endereco: "Rua Sarmento Leite n°876, ljs 880 e 882" },
+  "398": { cidade: "SAPUCAIA DO SUL", endereco: "Rua Professor Francisco Brochado da Rocha, nº 393" },
+  "399": { cidade: "CANELA", endereco: "Rua João Pessoa, 192" },
+  "400": { cidade: "NOVO HAMBURGO", endereco: "Av. Dr. Maurício Cardoso, 833 - Sl 102" },
+  "401": { cidade: "PORTO ALEGRE", endereco: "Rua dos Andradas, 914" },
+  "402": { cidade: "FLORIANOPOLIS", endereco: "Avenida Pequeno Príncipe, 1650 - Loja 03" },
+  "403": { cidade: "CAXIAS DO SUL", endereco: "Rua Alfredo Chaves, 1332 – Suc 001 – Zaffari" },
+  "404": { cidade: "SAPIRANGA", endereco: "Rua João Corrêa, 1193" },
+  "405": { cidade: "SAO LEOPOLDO", endereco: "Av. Primeiro de Março, 821 – Suc 215" },
+  "406": { cidade: "CAXIAS DO SUL", endereco: "Rua Sinimbu, 135 SUC 003" },
+  "408": { cidade: "PORTO ALEGRE", endereco: "Coronel Bordini, 12" },
+  "411": { cidade: "CAMPO BOM", endereco: "Av. Brasil, 3057" },
+  "412": { cidade: "CANELA", endereco: "Rua Júlio de Castilhos, 509" },
+  "414": { cidade: "PORTO ALEGRE", endereco: "Av. Getúlio Vargas, 1714" },
+  "415": { cidade: "PORTO ALEGRE", endereco: "Rua Fernandes Vieira, 401 – suc 102" },
+  "416": { cidade: "NOVA PETROPOLIS", endereco: "Av. Quinze de Novembro, 1150 – Lj 02" },
+  "417": { cidade: "PASSO FUNDO", endereco: "Av. Presidente Vargas, 895" },
+  "999": { cidade: "Eldorado do Sul", endereco: "PANVEL MATRIZ EDS" }
+};
+
+const getBranchInfo = (ident: string) => {
+  // Extract numbers from something like "Filial 1" or "001"
+  const idNum = ident.replace(/\D/g, '').replace(/^0+/, '');
+  return FILIAIS[idNum] || null;
+};
 
 // --- Utils ---
 const conv = (h: string) => {
@@ -100,6 +332,7 @@ export default function App() {
       id: i + 1,
       nome: '',
       cpf: '',
+      crf: '',
       dataNascimento: '',
       tipoInclusao: 'Já vinculado',
       filialOrigem: '',
@@ -185,8 +418,13 @@ export default function App() {
     const transferErrors: string[] = [];
     if (actions.inclusaoFarma) {
       pharmacists.slice(0, qtd).forEach(f => {
-        if (f.tipoInclusao === 'Transferido' && !f.filialOrigem.trim()) {
-          transferErrors.push(`F${f.id}: Informe a Filial de Origem para inclusão por transferência.`);
+        if (f.tipoInclusao === 'Transferido') {
+          if (!f.filialOrigem.trim()) {
+            transferErrors.push(`F${f.id}: Informe a Filial de Origem para inclusão por transferência.`);
+          }
+          if (!f.crf.trim()) {
+            transferErrors.push(`F${f.id}: Informe o CRF/RS para inclusão por transferência.`);
+          }
         }
       });
     }
@@ -321,67 +559,123 @@ export default function App() {
     setValidationResult({ text: '', type: 'idle', canGeneratePdf: false, totalHours: [] });
   };
 
+  const downloadBlob = (bytes: Uint8Array, name: string) => {
+    const blob = new Blob([bytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  };
+
   const gerarPDF = async () => {
     try {
-      // Try to fetch the template.pdf from the public folder or root
-      const response = await fetch('/template.pdf');
-      if (!response.ok) {
-        throw new Error("Não foi possível carregar o arquivo 'template.pdf'. Certifique-se de que ele está na pasta do projeto.");
-      }
+      // 1. Gerar Tabela de Horários Principal
+      const responseMain = await fetch('/template.pdf');
+      if (!responseMain.ok) throw new Error("Não foi possível carregar 'template.pdf' na raiz do site.");
       
-      const bytes = await response.arrayBuffer();
-      const pdfDoc = await PDFDocument.load(bytes);
-      const form = pdfDoc.getForm();
-      // const pages = pdfDoc.getPages(); // Not needed if using form fields
+      const bytesMain = await responseMain.arrayBuffer();
+      const pdfDocMain = await PDFDocument.load(bytesMain);
+      const formMain = pdfDocMain.getForm();
 
-      const setF = (f: string, v: string) => { 
+      const setFMain = (f: string, v: string) => { 
         try { 
-          const field = form.getTextField(f);
+          const field = formMain.getTextField(f);
           field.setText(v || ""); 
-        } catch (e) { 
-          // Silently ignore if field is missing, or log for debugging
-          // console.warn(`Field ${f} not found in PDF`);
-        } 
+        } catch (e) {} 
       };
 
-      // 1. Fill Filial Schedule
+      // Preencher horários da filial
       DAYS.forEach(d => {
         const dayUpper = d.toUpperCase();
-        setF(`${dayUpper}_A`, abertura[d]);
-        setF(`${dayUpper}_S`, fechamento[d]);
+        setFMain(`${dayUpper}_A`, abertura[d]);
+        setFMain(`${dayUpper}_S`, fechamento[d]);
       });
 
-      // 2. Fill Pharmacists Data
+      // Preencher dados dos farmacêuticos (F1 a F6)
       pharmacists.slice(0, qtd).forEach((f) => {
         const n = f.id;
-        setF(`F${n}_NOME`, f.nome);
-        setF(`F${n}_CPF`, f.cpf);
-        setF(`F${n}_NASC`, f.dataNascimento);
+        setFMain(`F${n}_NOME`, f.nome);
+        setFMain(`F${n}_CPF`, f.cpf);
+        setFMain(`F${n}_NASC`, f.dataNascimento);
 
         DAYS.forEach(d => {
           const dayUpper = d.toUpperCase();
-          setF(`F${n}_${dayUpper}_E`, f.entrada[d]);
-          setF(`F${n}_${dayUpper}_I`, f.intervalo[d]);
-          setF(`F${n}_${dayUpper}_R`, f.retorno[d]);
-          setF(`F${n}_${dayUpper}_S`, f.saida[d]);
+          const dayPrefix = `F${n}_${dayUpper}`;
+          setFMain(`${dayPrefix}_E`, f.entrada[d]);
+          setFMain(`${dayPrefix}_I`, f.intervalo[d]);
+          setFMain(`${dayPrefix}_R`, f.retorno[d]);
+          setFMain(`${dayPrefix}_S`, f.saida[d]);
         });
       });
 
-      const finalBytes = await pdfDoc.save();
-      const blob = new Blob([finalBytes], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Escala_${filial || 'Filial'}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const mainPdfBytes = await pdfDocMain.save();
+      downloadBlob(mainPdfBytes, `Escala_${filial || 'Filial'}.pdf`);
 
-      alert("Download concluído! Cheque sua aba de downloads.");
+      // 2. Gerar Declarações de Transferência Individuais
+      const currentBranchData = getBranchInfo(filial);
+
+      for (const f of pharmacists.slice(0, qtd)) {
+        if (f.tipoInclusao === 'Transferido') {
+          try {
+            const responseDec = await fetch('/declaracao.pdf');
+            if (responseDec.ok) {
+              const bytesDec = await responseDec.arrayBuffer();
+              const pdfDocDec = await PDFDocument.load(bytesDec);
+              const formDec = pdfDocDec.getForm();
+              
+              const setFDec = (name: string, val: string) => {
+                try {
+                  const field = formDec.getTextField(name);
+                  field.setText(val || "");
+                } catch (e) {}
+              };
+
+              // Fill Name in F1_T (multiple fields possible)
+              formDec.getFields().forEach(pdfField => {
+                if (pdfField.getName() === 'F1_T' && pdfField.constructor.name === 'PDFTextField') {
+                  (pdfField as any).setText(f.nome);
+                }
+              });
+
+              // CRF
+              setFDec("CRF_T", f.crf);
+
+              // Origin Address Lookup
+              const originBranchData = getBranchInfo(f.filialOrigem);
+              if (originBranchData) {
+                setFDec("END_ORIGEM", `${originBranchData.cidade}, ${originBranchData.endereco}`);
+              } else {
+                setFDec("END_ORIGEM", f.filialOrigem); // Fallback to raw input
+              }
+
+              // Final Address Lookup
+              if (currentBranchData) {
+                setFDec("END_FINAL", `${currentBranchData.cidade}, ${currentBranchData.endereco}`);
+              } else {
+                setFDec("END_FINAL", filial); // Fallback
+              }
+
+              const decPdfBytes = await pdfDocDec.save();
+              downloadBlob(decPdfBytes, `Declaracao_Transferencia_${f.nome.split(' ')[0]}.pdf`);
+            } else {
+              console.warn("Modelo 'declaracao.pdf' não encontrado para o funcionário transferido.");
+            }
+          } catch (decErr) {
+            console.error("Erro ao gerar declaração para: " + f.nome, decErr);
+          }
+        }
+      }
+
+      alert("Processamento concluído! Verifique seus downloads.");
       if (confirm("Assinaturas necessárias!! \n\nDirecionar para o site GOV?")) {
         window.open("https://www.gov.br/pt-br/servicos/assinatura-eletronica?origem=maisacessado_home", "_blank");
       }
     } catch (err) {
-      alert("Erro ao gerar PDF: " + (err as Error).message);
+      alert("Erro ao processar PDFs: " + (err as Error).message);
     }
   };
 
@@ -572,8 +866,8 @@ export default function App() {
                 <thead className="bg-white/10 text-indigo-200 sticky top-0 uppercase tracking-tighter z-10 backdrop-blur-md">
                   <tr>
                     <th colSpan={2} className="p-4 w-[280px] border-r border-white/5 font-black text-[10px]">Informações / Período</th>
-                    {DAYS.map(day => <th key={day} className="p-2 text-center border-r border-white/5 font-black text-[10px] w-[100px]">{day.toUpperCase()}</th>)}
-                    <th className="p-4 text-center w-14"></th>
+                    {DAYS.map(day => <th key={day} className="p-2 text-center border-r border-white/5 font-black text-[10px] w-[100px] min-w-[100px]">{day.toUpperCase()}</th>)}
+                    <th className="p-4 text-center w-14 min-w-[56px]"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
@@ -589,7 +883,7 @@ export default function App() {
                       </div>
                     </td>
                     {DAYS.map(d => (
-                      <td key={d} className="p-3 w-[100px]">
+                      <td key={d} className="p-3 w-[100px] min-w-[100px]">
                         <input 
                           type="time" 
                           value={abertura[d]} 
@@ -598,7 +892,7 @@ export default function App() {
                         />
                       </td>
                     ))}
-                    <td className="p-3 text-center">
+                    <td className="p-3 text-center w-14 min-w-[56px]">
                       <button onClick={() => handleCopyRow(abertura, setAbertura)} className="p-2 bg-white/5 hover:bg-white/15 rounded-xl text-slate-400 transition-all active:scale-90"><ClipboardCopy size={16} /></button>
                     </td>
                   </tr>
@@ -613,7 +907,7 @@ export default function App() {
                       </div>
                     </td>
                     {DAYS.map(d => (
-                      <td key={d} className="p-3 w-[100px]">
+                      <td key={d} className="p-3 w-[100px] min-w-[100px]">
                         <input 
                           type="time" 
                           value={fechamento[d]} 
@@ -622,7 +916,7 @@ export default function App() {
                         />
                       </td>
                     ))}
-                    <td className="p-3 text-center">
+                    <td className="p-3 text-center w-14 min-w-[56px]">
                       <button onClick={() => handleCopyRow(fechamento, setFechamento)} className="p-2 bg-white/5 hover:bg-white/15 rounded-xl text-slate-400 transition-all active:scale-90"><ClipboardCopy size={16} /></button>
                     </td>
                   </tr>
@@ -689,13 +983,22 @@ export default function App() {
                                         <option value="Transferido" className="bg-[#0f172a]">Transferido</option>
                                       </select>
                                       {f.tipoInclusao === 'Transferido' && (
-                                        <input 
-                                          type="text" 
-                                          placeholder="Origem"
-                                          value={f.filialOrigem} 
-                                          onChange={e => updatePharmacist(f.id, { filialOrigem: e.target.value })}
-                                          className="bg-white/5 border border-white/5 rounded-md px-2 py-1 text-[9px] outline-none w-full"
-                                        />
+                                        <div className="space-y-1.5 pt-1">
+                                          <input 
+                                            type="text" 
+                                            placeholder="Filial Origem"
+                                            value={f.filialOrigem} 
+                                            onChange={e => updatePharmacist(f.id, { filialOrigem: e.target.value })}
+                                            className="bg-white/5 border border-white/10 rounded-md px-2 py-1 text-[9px] outline-none w-full border-l-2 border-l-amber-500"
+                                          />
+                                          <input 
+                                            type="text" 
+                                            placeholder="CRF/RS:"
+                                            value={f.crf} 
+                                            onChange={e => updatePharmacist(f.id, { crf: e.target.value })}
+                                            className="bg-white/5 border border-white/10 rounded-md px-2 py-1 text-[9px] outline-none w-full border-l-2 border-l-amber-500"
+                                          />
+                                        </div>
                                       )}
                                     </div>
                                   )}
@@ -706,7 +1009,7 @@ export default function App() {
                               {config.label}
                             </td>
                             {DAYS.map(d => (
-                              <td key={d} className="p-2 border-r border-white/5 w-[100px]">
+                              <td key={d} className="p-2 border-r border-white/5 w-[100px] min-w-[100px]">
                                 <input 
                                   type="time" 
                                   value={f[config.field][d] as string} 
@@ -715,7 +1018,7 @@ export default function App() {
                                 />
                               </td>
                             ))}
-                            <td className="p-2 text-center w-14">
+                            <td className="p-2 text-center w-14 min-w-[56px]">
                               <button onClick={() => handleCopyFarmaRow(f.id, config.field, 'seg')} className="p-2 bg-white/5 hover:bg-indigo-500/20 rounded-xl text-slate-500 hover:text-white transition-all"><ClipboardCopy size={14} /></button>
                             </td>
                           </tr>
