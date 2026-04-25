@@ -1,0 +1,6 @@
+{
+  "name": "Validador Semanal de Horários",
+  "description": "Ferramenta para validação de escalas semanais de farmacêuticos com geração de PDF e controle de movimentações.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
