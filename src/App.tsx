@@ -525,7 +525,7 @@ const fmt = (min: number) => {
 
 export default function App() {
   // --- State ---
-  const [qtd, setQtd] = useState(0);
+  const [qtd, setQtd] = useState(1);
   const [filial, setFilial] = useState('');
 
   const [actions, setActions] = useState<Actions>({
@@ -660,18 +660,18 @@ export default function App() {
     }));
   };
 
-  const updatePharmacist = useCallback((id: number, updates: Partial<Pharmacist>) => {
+  const updatePharmacist = (id: number, updates: Partial<Pharmacist>) => {
     setPharmacists(prev => prev.map(f => (f.id === id ? { ...f, ...updates } : f)));
-  }, []);
+  };
 
-  const updateFarmaSchedule = useCallback((id: number, field: 'entrada' | 'intervalo' | 'retorno' | 'saida', day: Day, val: string) => {
+  const updateFarmaSchedule = (id: number, field: 'entrada' | 'intervalo' | 'retorno' | 'saida', day: Day, val: string) => {
     setPharmacists(prev => prev.map(f => {
       if (f.id === id) {
         return { ...f, [field]: { ...f[field], [day]: val } };
       }
       return f;
     }));
-  }, []);
+  };
 
   const validarSemana = () => {
     let totalHours = Array(qtd).fill(0);
@@ -985,30 +985,20 @@ export default function App() {
         } catch (_) {}
       });
 
-      const setFMain = (fieldName: string, v: string) => {
-        setFieldAutoSize(formMain, fieldName, v);
+      const setFMain = (f: string, v: string) => {
+        setFieldAutoSize(formMain, f, v);
       };
 
-      // Preencher horários da filial e fazer flatten imediato para liberar nomes
+      // Preencher horários da filial
       DAYS.forEach(d => {
         const dayUpper = d.toUpperCase();
         setFMain(`${dayUpper}_A`, abertura[d]);
         setFMain(`${dayUpper}_S`, fechamento[d]);
       });
-      // Flatten dos campos de abertura/fechamento
-      formMain.getFields().filter(field => {
-        const name = field.getName();
-        return DAYS.some(d => name === `${d.toUpperCase()}_A` || name === `${d.toUpperCase()}_S`);
-      }).forEach(field => { try { formMain.flattenField(field); } catch (_) {} });
 
-      // Preencher dados dos farmacêuticos um a um.
-      // Para evitar que campos com nomes duplicados no PDF se sobrescrevam,
-      // preenchemos cada farmacêutico, fazemos flatten dos campos daquele grupo
-      // e gravamos numa camada de conteúdo permanente antes de passar ao próximo.
-      for (const f of pharmacists.slice(0, qtd)) {
+      // Preencher dados dos farmacêuticos (F1 a F6)
+      pharmacists.slice(0, qtd).forEach((f) => {
         const n = f.id;
-
-        // Preenche todos os campos deste farmacêutico
         setFMain(`F${n}_NOME`, f.nome);
         setFMain(`F${n}_CPF`, f.cpf);
         setFMain(`F${n}_NASC`, f.dataNascimento);
@@ -1021,17 +1011,7 @@ export default function App() {
           setFMain(`${dayPrefix}_R`, f.retorno[d]);
           setFMain(`${dayPrefix}_S`, f.saida[d]);
         });
-
-        // Flatten SOMENTE os campos deste farmacêutico para gravá-los como
-        // texto fixo na página, libertando os nomes de campo para o próximo.
-        const fieldsToFlatten = formMain.getFields().filter(field => {
-          const name = field.getName();
-          return name.startsWith(`F${n}_`);
-        });
-        for (const field of fieldsToFlatten) {
-          try { formMain.flattenField(field); } catch (_) {}
-        }
-      }
+      });
 
       const mainPdfBytes = await pdfDocMain.save();
       downloadBlob(mainPdfBytes, `Escala_${filial || 'Filial'}.pdf`);
@@ -1410,7 +1390,6 @@ export default function App() {
               <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-3">Qtd. Farmacêuticos</p>
               <select value={qtd} onChange={e => setQtd(Number(e.target.value))}
                 className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-3 text-lg font-bold outline-none text-white">
-                <option value={0} className="bg-[#1e1b4b] text-slate-400">Selecione...</option>
                 {[1,2,3,4,5,6].map(n => <option key={n} value={n} className="bg-[#1e1b4b]">{n} farmacêutico{n > 1 ? 's' : ''}</option>)}
               </select>
             </div>
@@ -1623,7 +1602,6 @@ export default function App() {
                 onChange={e => setQtd(Number(e.target.value))}
                 className="bg-transparent text-lg font-bold outline-none border-none p-0 cursor-pointer text-white w-full"
               >
-                <option value={0} className="bg-[#1e1b4b] text-slate-400">Selecione...</option>
                 {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n} className="bg-[#1e1b4b]">{n}</option>)}
               </select>
             </div>
@@ -1773,8 +1751,6 @@ export default function App() {
                     const nomeUnlocked = isFarmaNomeOk(fIdx);
                     const cpfNascUnlocked = isFarmaCpfNascOk(fIdx);
                     const schedUnlocked = isFarmaScheduleOk(fIdx);
-                    // Quase invisível se filial ainda sem horário (mas nome/cpf preenchidos)
-                    const schedDimmed = !isFilialHoraOk;
 
                     return (
                       <React.Fragment key={f.id}>
@@ -1864,7 +1840,7 @@ export default function App() {
                               {config.label}
                             </td>
                             {DAYS.map(d => (
-                              <td key={d} className={`p-2 border-r border-white/5 w-[100px] min-w-[100px] transition-all duration-300 ${(!schedUnlocked || schedDimmed) ? 'opacity-10 pointer-events-none' : ''}`}>
+                              <td key={d} className={`p-2 border-r border-white/5 w-[100px] min-w-[100px] transition-all duration-300 ${!schedUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
                                 <input 
                                   type="time" 
                                   value={f[config.field][d] as string} 
