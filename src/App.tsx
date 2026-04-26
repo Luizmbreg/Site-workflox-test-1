@@ -898,51 +898,50 @@ export default function App() {
     });
   };
 
-  // Aplica assinatura em duas posições do PDF de transferência:
-  // 1. Acima da linha "DIMED S.A." (canto superior esquerdo do doc)
-  // 2. Acima da linha "FARMACÊUTICO(A)" (substitui o campo F1_T de texto)
-  const aplicarAssinaturaAoPdf = async (pdfBytes: Uint8Array, nome: string): Promise<Uint8Array> => {
-    const pngBytes = await gerarAssinaturaCanvas(nome);
-    const pdfDoc = await PDFDocument.load(pdfBytes);
-    const pngImage = await pdfDoc.embedPng(pngBytes);
+  // Gera assinatura cursiva para um nome específico
+  const gerarAssinaturaNome = (nome: string): Promise<Uint8Array> => gerarAssinaturaCanvas(nome);
 
-    const pages = pdfDoc.getPages();
-    const page = pages[0];
+  // Aplica DUAS assinaturas no PDF de transferência:
+  // - Linha DIMED: sempre "Luiz Gustavo de Menezes Braga" (representante fixo)
+  // - Linha FARMACÊUTICO(A): nome do farmacêutico transferido
+  const aplicarAssinaturaAoPdf = async (pdfBytes: Uint8Array, nomeFarma: string): Promise<Uint8Array> => {
+    const NOME_REPRESENTANTE = 'Luiz Gustavo de Menezes Braga';
+
+    const [pngBytesRep, pngBytesFarma] = await Promise.all([
+      gerarAssinaturaCanvas(NOME_REPRESENTANTE),
+      gerarAssinaturaCanvas(nomeFarma),
+    ]);
+
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const [imgRep, imgFarma] = await Promise.all([
+      pdfDoc.embedPng(pngBytesRep),
+      pdfDoc.embedPng(pngBytesFarma),
+    ]);
+
+    const page = pdfDoc.getPages()[0];
     const { width, height } = page.getSize();
 
-    // Proporção da imagem gerada
-    const imgRatio = pngImage.width / pngImage.height;
+    // Altura alvo da assinatura (~12mm em pontos PDF)
+    const sigH = 26;
 
-    // Altura alvo da assinatura em pontos PDF (~14mm)
-    const sigH = 28;
-    const sigW = sigH * imgRatio;
+    const desenhar = (img: typeof imgRep, yFrac: number, xFrac = 0.08) => {
+      const sigW = sigH * (img.width / img.height);
+      page.drawImage(img, {
+        x: width * xFrac,
+        y: height * yFrac,
+        width: sigW,
+        height: sigH,
+        opacity: 0.88,
+      });
+    };
 
-    // ── Posição 1: acima da linha "DIMED S.A." ──
-    // Vendo a imagem: linha DIMED fica aprox. a 88% do topo (12% do fundo em coordenadas PDF)
-    // A assinatura fica logo acima da linha → y um pouco acima
-    const dimedLineY = height * 0.882; // linha DIMED
-    page.drawImage(pngImage, {
-      x: width * 0.05,          // margem esquerda alinhada ao texto DIMED
-      y: dimedLineY + 2,        // logo acima da linha
-      width: sigW,
-      height: sigH,
-      opacity: 0.90,
-    });
+    // Linha DIMED S.A.: fica ~35% da altura do doc (acima da linha)
+    desenhar(imgRep, 0.355);
 
-    // ── Posição 2: acima da linha "FARMACÊUTICO(A)" ──
-    // Vendo a imagem: campo farmacêutico fica aprox. 78% do topo
-    const farmaLineY = height * 0.795;
-    page.drawImage(pngImage, {
-      x: width * 0.05,
-      y: farmaLineY + 2,
-      width: sigW,
-      height: sigH,
-      opacity: 0.90,
-    });
+    // Linha FARMACÊUTICO(A): fica ~15% da altura do doc
+    desenhar(imgFarma, 0.155);
 
-    // Flatten todo o formulário para que campos de texto não fiquem sobrepostos
     try { pdfDoc.getForm().flatten(); } catch (_) {}
-
     return pdfDoc.save();
   };
 
@@ -1312,6 +1311,12 @@ export default function App() {
             <input type="text" value={f.dataNascimento} disabled={!cpfNascUnlocked} onChange={e => updatePharmacist(f.id, { dataNascimento: e.target.value })}
               className="mt-1 w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-400"/>
           </div>
+          {/* CRF sempre visível, largura total */}
+          <div className="col-span-2">
+            <label className="text-[9px] uppercase font-bold text-slate-500">CRF/RS</label>
+            <input type="text" placeholder="Ex: 690005" value={f.crf} disabled={!cpfNascUnlocked} onChange={e => updatePharmacist(f.id, { crf: e.target.value })}
+              className="mt-1 w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-400"/>
+          </div>
         </div>
         {actions.inclusaoFarma && (
           <div className={`transition-all ${!cpfNascUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
@@ -1322,13 +1327,10 @@ export default function App() {
               <option value="Nova contratação" className="bg-[#0f172a]">Nova Contratação</option>
               <option value="Transferido" className="bg-[#0f172a]">Transferido</option>
             </select>
+            {/* Quando Transferido: só filial de origem */}
             {f.tipoInclusao === 'Transferido' && (
-              <div className="mt-2 space-y-2">
-                <input type="text" placeholder="Filial Origem" value={f.filialOrigem} onChange={e => updatePharmacist(f.id, { filialOrigem: e.target.value })}
-                  className="w-full bg-white/5 border-l-2 border-l-amber-500 border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none"/>
-                <input type="text" placeholder="CRF/RS" value={f.crf} onChange={e => updatePharmacist(f.id, { crf: e.target.value })}
-                  className="w-full bg-white/5 border-l-2 border-l-amber-500 border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none"/>
-              </div>
+              <input type="text" placeholder="Filial Origem" value={f.filialOrigem} onChange={e => updatePharmacist(f.id, { filialOrigem: e.target.value })}
+                className="mt-2 w-full bg-white/5 border-l-2 border-l-amber-500 border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none"/>
             )}
           </div>
         )}
@@ -1792,6 +1794,18 @@ export default function App() {
                                         className="bg-black/40 border border-white/5 rounded-md px-2 py-0.5 text-[10px] text-indigo-100 outline-none disabled:cursor-not-allowed"
                                       />
                                     </div>
+                                    {/* CRF — sempre visível, obrigatório para todos */}
+                                    <div className="flex flex-col">
+                                      <label className="text-[8px] uppercase font-bold text-slate-500">CRF/RS:</label>
+                                      <input 
+                                        type="text" 
+                                        placeholder="Ex: 690005"
+                                        value={f.crf} 
+                                        onChange={e => updatePharmacist(f.id, { crf: e.target.value })}
+                                        disabled={!cpfNascUnlocked}
+                                        className="bg-black/40 border border-white/5 rounded-md px-2 py-0.5 text-[10px] text-indigo-100 outline-none disabled:cursor-not-allowed"
+                                      />
+                                    </div>
                                   </div>
 
                                   {actions.inclusaoFarma && (
@@ -1806,23 +1820,15 @@ export default function App() {
                                         <option value="Nova contratação" className="bg-[#0f172a]">Nova Contratação</option>
                                         <option value="Transferido" className="bg-[#0f172a]">Transferido</option>
                                       </select>
+                                      {/* Quando Transferido: só filial de origem */}
                                       {f.tipoInclusao === 'Transferido' && (
-                                        <div className="space-y-1.5 pt-1">
-                                          <input 
-                                            type="text" 
-                                            placeholder="Filial Origem"
-                                            value={f.filialOrigem} 
-                                            onChange={e => updatePharmacist(f.id, { filialOrigem: e.target.value })}
-                                            className="bg-white/5 border border-white/10 rounded-md px-2 py-1 text-[9px] outline-none w-full border-l-2 border-l-amber-500"
-                                          />
-                                          <input 
-                                            type="text" 
-                                            placeholder="CRF/RS:"
-                                            value={f.crf} 
-                                            onChange={e => updatePharmacist(f.id, { crf: e.target.value })}
-                                            className="bg-white/5 border border-white/10 rounded-md px-2 py-1 text-[9px] outline-none w-full border-l-2 border-l-amber-500"
-                                          />
-                                        </div>
+                                        <input 
+                                          type="text" 
+                                          placeholder="Filial Origem"
+                                          value={f.filialOrigem} 
+                                          onChange={e => updatePharmacist(f.id, { filialOrigem: e.target.value })}
+                                          className="bg-white/5 border border-white/10 rounded-md px-2 py-1 text-[9px] outline-none w-full border-l-2 border-l-amber-500"
+                                        />
                                       )}
                                     </div>
                                   )}
