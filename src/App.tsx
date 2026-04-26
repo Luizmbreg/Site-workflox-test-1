@@ -83,7 +83,7 @@ interface BaixaDetails {
 // PDFs carregados da pasta public/
 // Coloque os arquivos em: public/template.pdf e public/declaracao.pdf
 const TEMPLATE_PDF_URL = '/template.pdf';
-const DECLARACAO_PDF_URL = '/Documento Transferência - Site V2.pdf';
+const DECLARACAO_PDF_URL = '/Documento Transferência - Site.pdf';
 
 const FILIAIS: Record<string, { cidade: string; endereco: string }> = {
   "1": { cidade: "PORTO ALEGRE", endereco: "R. Dr. Flores, 194" },
@@ -931,25 +931,26 @@ export default function App() {
     const page = pdfDoc.getPages()[0];
     const { width, height } = page.getSize();
 
-    // Altura alvo da assinatura (~12mm em pontos PDF)
-    const sigH = 26;
+    // Altura alvo da assinatura
+    const sigH = 24;
 
-    const desenhar = (img: typeof imgRep, yFrac: number, xFrac = 0.08) => {
+    const desenhar = (img: typeof imgRep, x: number, y: number) => {
       const sigW = sigH * (img.width / img.height);
       page.drawImage(img, {
-        x: width * xFrac,
-        y: height * yFrac,
+        x,
+        y,
         width: sigW,
         height: sigH,
         opacity: 0.88,
       });
     };
 
-    // Linha DIMED S.A.: fica ~35% da altura do doc (acima da linha)
-    desenhar(imgRep, 0.355);
+    // Coordenadas exatas obtidas via PDF Coordinate Viewer
+    // DIMED S.A. — posição da letra inicial: x=179, y=483
+    desenhar(imgRep, 179, 483);
 
-    // Linha FARMACÊUTICO(A): fica ~15% da altura do doc
-    desenhar(imgFarma, 0.155);
+    // FARMACÊUTICO(A) — posição da letra inicial: x=182, y=391
+    desenhar(imgFarma, 182, 391);
 
     try { pdfDoc.getForm().flatten(); } catch (_) {}
     return pdfDoc.save();
@@ -1069,8 +1070,18 @@ export default function App() {
             const mesAtual = hoje.toLocaleString('pt-BR', { month: 'long' });
             const mesCapitalizado = mesAtual.charAt(0).toUpperCase() + mesAtual.slice(1);
 
-            // F1_T: não preencher mais como texto — a assinatura cursiva é aplicada depois
-            // pelo aplicarAssinaturaAoPdf nas duas posições (DIMED + FARMACÊUTICO)
+            // F1_T: preenche com o nome do farmacêutico (texto no campo)
+            // A assinatura cursiva é aplicada depois por aplicarAssinaturaAoPdf
+            formDec.getFields().forEach(pdfField => {
+              if (pdfField.getName() === 'F1_T') {
+                try {
+                  (pdfField as any).setText(f.nome || '');
+                  for (let size = 10; size >= 4; size--) {
+                    try { (pdfField as any).setFontSize(size); break; } catch (_) {}
+                  }
+                } catch (_) {}
+              }
+            });
 
             // CRF — fonte 7 para não sobrepor o texto à esquerda
             setFDec('CRF_T', f.crf, 7);
