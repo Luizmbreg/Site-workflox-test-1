@@ -1751,13 +1751,13 @@ export default function App() {
                     const nomeUnlocked = isFarmaNomeOk(fIdx);
                     const cpfNascUnlocked = isFarmaCpfNascOk(fIdx);
                     const schedUnlocked = isFarmaScheduleOk(fIdx);
-                    // Campos de horário quase invisíveis enquanto filial não tiver horário
-                    const schedDimmed = !isFilialHoraOk;
+                    // Bloco inteiro fica cinza até abertura+fechamento da filial preenchidos
+                    const blocoFilialDimmed = !isFilialHoraOk;
 
                     return (
                       <React.Fragment key={f.id}>
                         {rowConfigs.map((config, idx) => (
-                          <tr key={`${f.id}-${config.field}`} className={`group/row border-b border-white/5 last:border-b-2 transition-all duration-300 ${isFocused ? 'bg-indigo-500/[0.08]' : isDimmed ? 'opacity-30 bg-transparent' : 'bg-indigo-500/[0.03]'}`}>
+                          <tr key={`${f.id}-${config.field}`} className={`group/row border-b border-white/5 last:border-b-2 transition-all duration-300 ${blocoFilialDimmed ? 'opacity-20 pointer-events-none grayscale' : isFocused ? 'bg-indigo-500/[0.08]' : isDimmed ? 'opacity-30 bg-transparent' : 'bg-indigo-500/[0.03]'}`}>
                             {idx === 0 && (
                               <td rowSpan={4} className="p-3 align-top border-r border-white/5 bg-indigo-500/[0.08] w-[180px]">
                                 <div className="space-y-3">
@@ -1842,7 +1842,7 @@ export default function App() {
                               {config.label}
                             </td>
                             {DAYS.map(d => (
-                              <td key={d} className={`p-2 border-r border-white/5 w-[100px] min-w-[100px] transition-all duration-300 ${(!schedUnlocked || schedDimmed) ? 'opacity-10 pointer-events-none' : ''}`}>
+                              <td key={d} className={`p-2 border-r border-white/5 w-[100px] min-w-[100px] transition-all duration-300 ${!schedUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
                                 <input 
                                   type="time" 
                                   value={f[config.field][d] as string} 
