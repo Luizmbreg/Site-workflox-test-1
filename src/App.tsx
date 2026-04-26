@@ -617,13 +617,18 @@ export default function App() {
 
   // Por farmacêutico: desbloqueio progressivo
   const isFarmaNomeOk = (fIdx: number) => {
-    const f = pharmacists[fIdx];
-    // Farma 1 desbloqueado se filial + ação + qtd + horário filial ok
-    // Farma N>1 desbloqueado se Farma N-1 tiver nome+cpf+nasc+pelo menos 1 horário de entrada
+    // F1: filial + ação + qtd + horário filial ok
     if (fIdx === 0) return isEverythingUnlocked && isFilialHoraOk;
+    // FN>1: anterior tem nome+cpf+nasc+crf E pelo menos 1 dia com entrada E saída
     const prev = pharmacists[fIdx - 1];
-    const prevHasSchedule = DAYS.some(d => prev.entrada[d] !== '');
-    return prev.nome.trim() !== '' && prev.cpf.trim() !== '' && prev.dataNascimento.trim() !== '' && prevHasSchedule;
+    const prevHasEntradaSaida = DAYS.some(d => prev.entrada[d] !== '' && prev.saida[d] !== '');
+    return (
+      prev.nome.trim() !== '' &&
+      prev.cpf.trim() !== '' &&
+      prev.dataNascimento.trim() !== '' &&
+      prev.crf.trim() !== '' &&
+      prevHasEntradaSaida
+    );
   };
 
   const isFarmaCpfNascOk = (fIdx: number) => {
@@ -631,9 +636,16 @@ export default function App() {
     return isFarmaNomeOk(fIdx) && f.nome.trim() !== '';
   };
 
-  const isFarmaScheduleOk = (fIdx: number) => {
+  // Libera CRF após CPF + Nascimento preenchidos
+  const isFarmaCrfOk = (fIdx: number) => {
     const f = pharmacists[fIdx];
     return isFarmaCpfNascOk(fIdx) && f.cpf.trim() !== '' && f.dataNascimento.trim() !== '';
+  };
+
+  // Libera horários após Nome + CPF + Nascimento + CRF preenchidos
+  const isFarmaScheduleOk = (fIdx: number) => {
+    const f = pharmacists[fIdx];
+    return isFarmaCrfOk(fIdx) && f.crf.trim() !== '';
   };
 
   // --- Handlers ---
@@ -1750,6 +1762,7 @@ export default function App() {
 
                     const nomeUnlocked = isFarmaNomeOk(fIdx);
                     const cpfNascUnlocked = isFarmaCpfNascOk(fIdx);
+                    const crfUnlocked = isFarmaCrfOk(fIdx);
                     const schedUnlocked = isFarmaScheduleOk(fIdx);
                     // Bloco inteiro fica cinza até abertura+fechamento da filial preenchidos
                     const blocoFilialDimmed = !isFilialHoraOk;
@@ -1796,15 +1809,15 @@ export default function App() {
                                         className="bg-black/40 border border-white/5 rounded-md px-2 py-0.5 text-[10px] text-indigo-100 outline-none disabled:cursor-not-allowed"
                                       />
                                     </div>
-                                    {/* CRF — sempre visível, obrigatório para todos */}
-                                    <div className="flex flex-col">
+                                    {/* CRF — libera após CPF + Nascimento */}
+                                    <div className={`flex flex-col transition-all duration-300 ${!crfUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
                                       <label className="text-[8px] uppercase font-bold text-slate-500">CRF/RS:</label>
                                       <input 
                                         type="text" 
                                         placeholder="Ex: 690005"
                                         value={f.crf} 
                                         onChange={e => updatePharmacist(f.id, { crf: e.target.value })}
-                                        disabled={!cpfNascUnlocked}
+                                        disabled={!crfUnlocked}
                                         className="bg-black/40 border border-white/5 rounded-md px-2 py-0.5 text-[10px] text-indigo-100 outline-none disabled:cursor-not-allowed"
                                       />
                                     </div>
@@ -1838,11 +1851,11 @@ export default function App() {
                               </td>
                             )}
                             {/* Label centralizado verticalmente */}
-                            <td className="p-3 w-[100px] text-[9px] uppercase font-black text-slate-500 border-r border-white/5 bg-indigo-500/[0.02] group-hover/row:text-indigo-300 transition-colors leading-tight min-w-[100px] text-center align-middle">
+                            <td className={`p-3 w-[100px] text-[9px] uppercase font-black border-r border-white/5 bg-indigo-500/[0.02] leading-tight min-w-[100px] text-center align-middle transition-all duration-300 ${!schedUnlocked ? 'text-slate-700 opacity-40' : 'text-slate-500 group-hover/row:text-indigo-300'}`}>
                               {config.label}
                             </td>
                             {DAYS.map(d => (
-                              <td key={d} className={`p-2 border-r border-white/5 w-[100px] min-w-[100px] transition-all duration-300 ${!schedUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
+                              <td key={d} className={`p-2 border-r border-white/5 w-[100px] min-w-[100px] transition-all duration-300 ${!schedUnlocked ? 'opacity-20 pointer-events-none grayscale' : ''}`}>
                                 <input 
                                   type="time" 
                                   value={f[config.field][d] as string} 
