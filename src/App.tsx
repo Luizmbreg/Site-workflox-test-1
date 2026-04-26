@@ -1538,7 +1538,7 @@ export default function App() {
   // ─────────────────────────────────────────────
   return (
     <div className="min-h-screen font-sans text-slate-100 antialiased" style={{ background: 'linear-gradient(135deg,#0f0c29,#302b63,#24243e)' }}>
-      <div className="relative w-full max-w-[1400px] mx-auto glass-panel shadow-2xl flex flex-col animate-in fade-in duration-700" style={{ minHeight: '100vh' }}>
+      <div className="relative w-full max-w-[1400px] mx-auto backdrop-blur-xl bg-white/5 shadow-2xl flex flex-col animate-in fade-in duration-700" style={{ minHeight: '100vh' }}>
         
         {/* Header - Centered Filial */}
         <header className="flex flex-col items-center justify-center p-2 border-b border-white/10 shrink-0 bg-white/5 space-y-2">
@@ -1567,7 +1567,7 @@ export default function App() {
         </header>
 
         {/* Global Controls & Actions - Reordered Step 2 & 3 */}
-        <section className={`p-4 grid grid-cols-12 gap-6 shrink-0 border-b border-white/10 transition-all ${!isStep1Done ? 'locked-section' : 'unlocked-section'}`}>
+        <section className={`p-4 grid grid-cols-12 gap-6 shrink-0 border-b border-white/10 transition-all ${!isStep1Done ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
           
           <div className="col-span-12 lg:col-span-3 flex flex-col gap-3">
             <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest flex items-center gap-2">
@@ -1695,8 +1695,8 @@ export default function App() {
           </div>
         </section>
 
-        {/* Schedule Table Area */}
-        <div className={`p-4 transition-all ${!isEverythingUnlocked ? 'locked-section' : 'unlocked-section'}`}>
+        {/* Schedule Table Area — sempre visível, dimmed até preencher filial+ação+qtd */}
+        <div className={`p-4 transition-all duration-300 ${!isEverythingUnlocked ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
           <div className="w-full border border-white/10 rounded-2xl overflow-hidden bg-black/30 shadow-2xl">
             <div className="w-full overflow-x-auto">
               <table className="w-full text-left text-[11px] border-collapse min-w-[1000px] table-fixed">
