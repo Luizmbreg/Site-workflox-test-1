@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -525,7 +525,7 @@ const fmt = (min: number) => {
 
 export default function App() {
   // --- State ---
-  const [qtd, setQtd] = useState(1);
+  const [qtd, setQtd] = useState(0);
   const [filial, setFilial] = useState('');
 
   const [actions, setActions] = useState<Actions>({
@@ -660,18 +660,16 @@ export default function App() {
     }));
   };
 
-  const updatePharmacist = (id: number, updates: Partial<Pharmacist>) => {
+  const updatePharmacist = useCallback((id: number, updates: Partial<Pharmacist>) => {
     setPharmacists(prev => prev.map(f => (f.id === id ? { ...f, ...updates } : f)));
-  };
+  }, []);
 
-  const updateFarmaSchedule = (id: number, field: 'entrada' | 'intervalo' | 'retorno' | 'saida', day: Day, val: string) => {
+  const updateFarmaSchedule = useCallback((id: number, field: 'entrada' | 'intervalo' | 'retorno' | 'saida', day: Day, val: string) => {
     setPharmacists(prev => prev.map(f => {
-      if (f.id === id) {
-        return { ...f, [field]: { ...f[field], [day]: val } };
-      }
+      if (f.id === id) return { ...f, [field]: { ...f[field], [day]: val } };
       return f;
     }));
-  };
+  }, []);
 
   const validarSemana = () => {
     let totalHours = Array(qtd).fill(0);
@@ -1390,6 +1388,7 @@ export default function App() {
               <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-3">Qtd. Farmacêuticos</p>
               <select value={qtd} onChange={e => setQtd(Number(e.target.value))}
                 className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-3 text-lg font-bold outline-none text-white">
+                <option value={0} className="bg-[#1e1b4b] text-slate-400">Selecione...</option>
                 {[1,2,3,4,5,6].map(n => <option key={n} value={n} className="bg-[#1e1b4b]">{n} farmacêutico{n > 1 ? 's' : ''}</option>)}
               </select>
             </div>
@@ -1602,6 +1601,7 @@ export default function App() {
                 onChange={e => setQtd(Number(e.target.value))}
                 className="bg-transparent text-lg font-bold outline-none border-none p-0 cursor-pointer text-white w-full"
               >
+                <option value={0} className="bg-[#1e1b4b] text-slate-400">Selecione...</option>
                 {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n} className="bg-[#1e1b4b]">{n}</option>)}
               </select>
             </div>
@@ -1751,6 +1751,8 @@ export default function App() {
                     const nomeUnlocked = isFarmaNomeOk(fIdx);
                     const cpfNascUnlocked = isFarmaCpfNascOk(fIdx);
                     const schedUnlocked = isFarmaScheduleOk(fIdx);
+                    // Campos de horário quase invisíveis enquanto filial não tiver horário
+                    const schedDimmed = !isFilialHoraOk;
 
                     return (
                       <React.Fragment key={f.id}>
@@ -1840,7 +1842,7 @@ export default function App() {
                               {config.label}
                             </td>
                             {DAYS.map(d => (
-                              <td key={d} className={`p-2 border-r border-white/5 w-[100px] min-w-[100px] transition-all duration-300 ${!schedUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
+                              <td key={d} className={`p-2 border-r border-white/5 w-[100px] min-w-[100px] transition-all duration-300 ${(!schedUnlocked || schedDimmed) ? 'opacity-10 pointer-events-none' : ''}`}>
                                 <input 
                                   type="time" 
                                   value={f[config.field][d] as string} 
