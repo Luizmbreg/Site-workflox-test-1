@@ -10,7 +10,11 @@ import {
   UserMinus, 
   UserPlus, 
   Clock,
-  ExternalLink
+  ExternalLink,
+  Smartphone,
+  Monitor,
+  ChevronRight,
+  ChevronLeft
 } from 'lucide-react';
 
 // --- Supabase ---
@@ -580,6 +584,11 @@ export default function App() {
   // Controle de foco na tabela de horários
   const [focusedFarmaId, setFocusedFarmaId] = useState<number | null>(null);
 
+  // Mobile mode
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  const [mobileTab, setMobileTab] = useState<'config' | 'filial' | 'farma' | 'validar'>('config');
+  const [mobileFarmaIdx, setMobileFarmaIdx] = useState(0);
+
   // --- Effects ---
   useEffect(() => {
     // Reset state if input changes
@@ -1082,6 +1091,315 @@ export default function App() {
     </tr>
   );
 
+  // ─── Mobile tab labels ───
+  const MOBILE_TABS = [
+    { key: 'config', label: 'Config' },
+    { key: 'filial', label: 'Filial' },
+    { key: 'farma',  label: 'Farmacêuticos' },
+    { key: 'validar',label: 'Validar' },
+  ] as const;
+
+  // ─── Shared sub-components ───
+  const ActionCheckboxes = () => (
+    <div className="grid grid-cols-1 gap-3">
+      {([
+        { key: 'alterarHorario', label: 'Alterar horário', color: 'indigo' },
+        { key: 'baixaFarma',     label: 'Baixa de farmacêutico', color: 'red' },
+        { key: 'inclusaoFarma',  label: 'Inclusão de farmacêutico', color: 'emerald' },
+      ] as const).map(({ key, label, color }) => (
+        <label key={key} className="flex items-center gap-3 cursor-pointer group">
+          <div className={`w-6 h-6 rounded-xl border-2 border-white/20 flex items-center justify-center transition-all shrink-0 ${actions[key] ? `bg-${color}-500 border-${color}-400 shadow-lg shadow-${color}-500/40` : 'bg-white/5'}`}>
+            {actions[key] && <CheckCircle size={14} className="text-white" />}
+            <input type="checkbox" checked={actions[key]} onChange={e => setActions(prev => ({ ...prev, [key]: e.target.checked }))} className="hidden" />
+          </div>
+          <span className={`text-sm font-bold uppercase transition-colors ${actions[key] ? 'text-white' : 'text-slate-400'}`}>{label}</span>
+        </label>
+      ))}
+    </div>
+  );
+
+  const BaixaForm = () => (
+    <AnimatePresence mode="wait">
+      {actions.baixaFarma ? (
+        <motion.div key="baixa" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+          className="bg-red-500/5 p-4 rounded-2xl border border-red-500/20 space-y-3">
+          <p className="text-[11px] font-bold text-red-400 uppercase tracking-widest flex items-center gap-2"><UserMinus size={14}/> Formulário de baixa</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] uppercase opacity-60 font-bold">Farmacêutico</label>
+              <input type="text" value={baixaDetails.nome} onChange={e => setBaixaDetails(p => ({ ...p, nome: e.target.value }))}
+                className="bg-white/5 border border-white/15 rounded-xl px-3 py-2 text-sm outline-none" placeholder="Nome Completo"/>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] uppercase opacity-60 font-bold">Motivo</label>
+              <select value={baixaDetails.motivo} onChange={e => setBaixaDetails(p => ({ ...p, motivo: e.target.value as any }))}
+                className="bg-white/5 border border-white/15 rounded-xl px-3 py-2 text-sm outline-none text-slate-200">
+                <option value="Desligamento" className="bg-[#0f172a]">Desligamento</option>
+                <option value="Transferência" className="bg-[#0f172a]">Transferência</option>
+              </select>
+            </div>
+          </div>
+          {baixaDetails.motivo === 'Transferência' && (
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] uppercase opacity-60 font-bold">Filial Destino</label>
+              <input type="text" value={baixaDetails.filialDestino} onChange={e => setBaixaDetails(p => ({ ...p, filialDestino: e.target.value }))}
+                className="bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-sm outline-none" placeholder="Número ou Nome da Filial"/>
+            </div>
+          )}
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
+
+  // Mobile: horários em cards por dia
+  const MobileScheduleDay = ({ f, fIdx }: { f: Pharmacist; fIdx: number }) => {
+    const schedUnlocked = isFarmaScheduleOk(fIdx);
+    return (
+      <div className={`space-y-3 transition-all ${!schedUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
+        {DAYS.map(d => (
+          <div key={d} className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+            <div className="px-4 py-2 bg-indigo-500/10 border-b border-white/5">
+              <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">{d.toUpperCase()}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 p-3">
+              {(['entrada','intervalo','retorno','saida'] as const).map(field => (
+                <div key={field} className="flex flex-col gap-1">
+                  <label className="text-[9px] uppercase font-bold text-slate-500 capitalize">{field === 'retorno' ? 'Retorno' : field}</label>
+                  <input type="time" value={f[field][d]} onChange={e => updateFarmaSchedule(f.id, field, d, e.target.value)}
+                    className="bg-black/40 border border-white/10 rounded-xl px-2 py-2 text-sm text-white font-bold outline-none focus:border-indigo-400 focus:bg-indigo-500/10 text-center w-full"/>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // Mobile: info card per pharmacist
+  const MobileFarmaInfo = ({ f, fIdx }: { f: Pharmacist; fIdx: number }) => {
+    const nomeUnlocked = isFarmaNomeOk(fIdx);
+    const cpfNascUnlocked = isFarmaCpfNascOk(fIdx);
+    return (
+      <div className="space-y-3">
+        <div className={`transition-all ${!nomeUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
+          <label className="text-[9px] uppercase font-bold text-slate-500">Nome</label>
+          <input type="text" placeholder="Nome completo" value={f.nome} disabled={!nomeUnlocked}
+            onChange={e => updatePharmacist(f.id, { nome: e.target.value })}
+            className="mt-1 w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-sm text-white font-bold outline-none focus:border-indigo-400 focus:bg-indigo-500/10"/>
+        </div>
+        <div className={`grid grid-cols-2 gap-3 transition-all ${!cpfNascUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
+          <div>
+            <label className="text-[9px] uppercase font-bold text-slate-500">CPF</label>
+            <input type="text" value={f.cpf} disabled={!cpfNascUnlocked} onChange={e => updatePharmacist(f.id, { cpf: e.target.value })}
+              className="mt-1 w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-400"/>
+          </div>
+          <div>
+            <label className="text-[9px] uppercase font-bold text-slate-500">Nascimento</label>
+            <input type="text" value={f.dataNascimento} disabled={!cpfNascUnlocked} onChange={e => updatePharmacist(f.id, { dataNascimento: e.target.value })}
+              className="mt-1 w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-400"/>
+          </div>
+        </div>
+        {actions.inclusaoFarma && (
+          <div className={`transition-all ${!cpfNascUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
+            <label className="text-[9px] uppercase font-bold text-slate-500">Tipo de Inclusão</label>
+            <select value={f.tipoInclusao} disabled={!cpfNascUnlocked} onChange={e => updatePharmacist(f.id, { tipoInclusao: e.target.value as any })}
+              className="mt-1 w-full bg-emerald-500/10 border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none font-bold">
+              <option value="Já vinculado" className="bg-[#0f172a]">Já vinculado</option>
+              <option value="Nova contratação" className="bg-[#0f172a]">Nova Contratação</option>
+              <option value="Transferido" className="bg-[#0f172a]">Transferido</option>
+            </select>
+            {f.tipoInclusao === 'Transferido' && (
+              <div className="mt-2 space-y-2">
+                <input type="text" placeholder="Filial Origem" value={f.filialOrigem} onChange={e => updatePharmacist(f.id, { filialOrigem: e.target.value })}
+                  className="w-full bg-white/5 border-l-2 border-l-amber-500 border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none"/>
+                <input type="text" placeholder="CRF/RS" value={f.crf} onChange={e => updatePharmacist(f.id, { crf: e.target.value })}
+                  className="w-full bg-white/5 border-l-2 border-l-amber-500 border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none"/>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ─────────────────────────────────────────────
+  //  MOBILE LAYOUT
+  // ─────────────────────────────────────────────
+  if (isMobile) return (
+    <div className="min-h-screen font-sans text-slate-100 antialiased flex flex-col" style={{ background: 'linear-gradient(135deg,#0f0c29,#302b63,#24243e)' }}>
+
+      {/* Mobile Header */}
+      <header className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5 shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-indigo-500 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/30">
+            <Clock className="w-4 h-4 text-white"/>
+          </div>
+          <span className="text-xs font-black text-white uppercase tracking-wider">Validador</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-indigo-300 font-bold uppercase">Filial {filial || '—'}</span>
+          <button onClick={() => setIsMobile(false)}
+            className="flex items-center gap-1.5 bg-white/10 border border-white/15 rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-300 hover:bg-white/20 transition-all">
+            <Monitor size={13}/> Desktop
+          </button>
+        </div>
+      </header>
+
+      {/* Mobile Tabs */}
+      <div className="flex shrink-0 border-b border-white/10 bg-black/20">
+        {MOBILE_TABS.map(tab => (
+          <button key={tab.key} onClick={() => setMobileTab(tab.key)}
+            className={`flex-1 py-3 text-[10px] font-black uppercase tracking-wider transition-all ${mobileTab === tab.key ? 'text-indigo-300 border-b-2 border-indigo-400 bg-indigo-500/10' : 'text-slate-500 hover:text-slate-300'}`}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Mobile Tab Content */}
+      <div className="flex-1 overflow-auto p-4 space-y-4">
+
+        {/* ── TAB: Config ── */}
+        {mobileTab === 'config' && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+            <div className="space-y-2">
+              <label className="text-[9px] uppercase font-black text-indigo-300 tracking-widest">Filial</label>
+              <input type="text" placeholder="Identificação da Filial" value={filial} onChange={e => setFilial(e.target.value)}
+                className="w-full bg-indigo-500/10 border-2 border-indigo-400/40 text-white text-xl font-black rounded-2xl py-3 px-4 focus:outline-none focus:border-indigo-400 text-center"/>
+            </div>
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+              <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-3">Ações</p>
+              <ActionCheckboxes/>
+            </div>
+            <div className={`bg-white/5 border border-white/10 rounded-2xl p-4 transition-all ${!isStep2Done ? 'opacity-40 pointer-events-none' : ''}`}>
+              <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-3">Qtd. Farmacêuticos</p>
+              <select value={qtd} onChange={e => setQtd(Number(e.target.value))}
+                className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-3 text-lg font-bold outline-none text-white">
+                {[1,2,3,4,5,6].map(n => <option key={n} value={n} className="bg-[#1e1b4b]">{n} farmacêutico{n > 1 ? 's' : ''}</option>)}
+              </select>
+            </div>
+            <BaixaForm/>
+            <button onClick={() => setMobileTab('filial')}
+              className="w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all"
+              style={{ background: isStep1Done && isStep2Done ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : 'rgba(255,255,255,0.05)', opacity: isStep1Done && isStep2Done ? 1 : 0.4 }}>
+              Próximo: Horário Filial <ChevronRight size={16}/>
+            </button>
+          </motion.div>
+        )}
+
+        {/* ── TAB: Filial ── */}
+        {mobileTab === 'filial' && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+            <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest">Horários de Abertura e Fechamento</p>
+            {DAYS.map(d => (
+              <div key={d} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                <div className="px-4 py-2 bg-indigo-500/10 border-b border-white/5">
+                  <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">{d.toUpperCase()}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 p-3">
+                  <div>
+                    <label className="text-[9px] uppercase font-bold text-slate-500">Abertura</label>
+                    <input type="time" value={abertura[d]} onChange={e => setAbertura({ ...abertura, [d]: e.target.value })}
+                      className="mt-1 w-full bg-black/40 border border-white/10 rounded-xl px-2 py-2.5 text-sm text-white font-bold outline-none focus:border-indigo-400 text-center"/>
+                  </div>
+                  <div>
+                    <label className="text-[9px] uppercase font-bold text-slate-500">Fechamento</label>
+                    <input type="time" value={fechamento[d]} onChange={e => setFechamento({ ...fechamento, [d]: e.target.value })}
+                      className="mt-1 w-full bg-black/40 border border-white/10 rounded-xl px-2 py-2.5 text-sm text-white font-bold outline-none focus:border-indigo-400 text-center"/>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button onClick={() => setMobileTab('farma')}
+              className="w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-white flex items-center justify-center gap-2 active:scale-[0.97]"
+              style={{ background: 'linear-gradient(135deg,#4f46e5,#7c3aed)' }}>
+              Próximo: Farmacêuticos <ChevronRight size={16}/>
+            </button>
+          </motion.div>
+        )}
+
+        {/* ── TAB: Farmacêuticos ── */}
+        {mobileTab === 'farma' && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+            {/* Farma selector */}
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {pharmacists.slice(0, qtd).map((f, idx) => (
+                <button key={f.id} onClick={() => setMobileFarmaIdx(idx)}
+                  className={`shrink-0 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${mobileFarmaIdx === idx ? 'bg-indigo-500 border-indigo-400 text-white' : 'bg-white/5 border-white/10 text-slate-400'}`}>
+                  F{f.id}{f.nome ? ` · ${f.nome.split(' ')[0]}` : ''}
+                </button>
+              ))}
+            </div>
+
+            {/* Current farma */}
+            {pharmacists.slice(0, qtd).map((f, fIdx) => fIdx !== mobileFarmaIdx ? null : (
+              <div key={f.id} className="space-y-4">
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                  <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-3">Dados — F{f.id}</p>
+                  <MobileFarmaInfo f={f} fIdx={fIdx}/>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                  <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-3">Horários — F{f.id}</p>
+                  <MobileScheduleDay f={f} fIdx={fIdx}/>
+                </div>
+                <div className="flex gap-3">
+                  {mobileFarmaIdx > 0 && (
+                    <button onClick={() => setMobileFarmaIdx(i => i - 1)}
+                      className="flex-1 py-3 rounded-2xl font-bold text-sm text-slate-300 bg-white/5 border border-white/10 flex items-center justify-center gap-2 active:scale-[0.97]">
+                      <ChevronLeft size={16}/> F{f.id - 1}
+                    </button>
+                  )}
+                  {mobileFarmaIdx < qtd - 1 ? (
+                    <button onClick={() => setMobileFarmaIdx(i => i + 1)}
+                      className="flex-1 py-3 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 active:scale-[0.97]"
+                      style={{ background: 'linear-gradient(135deg,#4f46e5,#7c3aed)' }}>
+                      F{f.id + 1} <ChevronRight size={16}/>
+                    </button>
+                  ) : (
+                    <button onClick={() => setMobileTab('validar')}
+                      className="flex-1 py-3 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 active:scale-[0.97]"
+                      style={{ background: 'linear-gradient(135deg,#059669,#047857)' }}>
+                      Validar <ChevronRight size={16}/>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </motion.div>
+        )}
+
+        {/* ── TAB: Validar ── */}
+        {mobileTab === 'validar' && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+            <div className={`rounded-2xl p-4 border font-mono text-xs leading-relaxed transition-all ${
+              validationResult.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' :
+              validationResult.type === 'error'   ? 'bg-red-500/10 border-red-500/20 text-red-300' :
+              validationResult.type === 'warning' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-300' :
+              'bg-black/40 border-white/5 text-slate-400'}`}>
+              <p className="font-bold text-white mb-2 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-white"></div> RESUMO:</p>
+              <p className="whitespace-pre-wrap">{validationResult.text || '> Aguardando dados...'}</p>
+            </div>
+            <button onClick={validarSemana} disabled={!isFilialHoraOk}
+              className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all ${isFilialHoraOk ? '' : 'opacity-40 cursor-not-allowed'}`}
+              style={{ background: isFilialHoraOk ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : 'rgba(79,70,229,0.2)' }}>
+              <CheckCircle size={16}/> {isFilialHoraOk ? 'Validar Escala' : 'Preencha horário da filial'}
+            </button>
+            <button onClick={gerarPDF} disabled={!validationResult.canGeneratePdf}
+              className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.97] transition-all border ${validationResult.canGeneratePdf ? 'text-white border-white/20 bg-white/10' : 'text-slate-600 border-white/5 bg-black/20 cursor-not-allowed opacity-50'}`}>
+              <FileDown size={16} className={validationResult.canGeneratePdf ? 'text-indigo-400' : ''}/> Gerar PDF
+            </button>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Bottom safe area spacer */}
+      <div className="h-6 shrink-0"/>
+    </div>
+  );
+
+  // ─────────────────────────────────────────────
+  //  DESKTOP LAYOUT (unchanged)
+  // ─────────────────────────────────────────────
   return (
     <div className="fixed inset-0 flex items-center justify-center p-4 font-sans text-slate-100 antialiased overflow-hidden">
       <div className="relative w-full h-full max-w-[1240px] max-h-[920px] glass-panel rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in duration-700">
@@ -1093,6 +1411,11 @@ export default function App() {
               <Clock className="w-4 h-4 text-white" />
             </div>
             <h1 className="text-sm font-light tracking-widest text-white uppercase opacity-80">Validador Semanal de Horários</h1>
+            {/* Toggle Mobile */}
+            <button onClick={() => setIsMobile(true)}
+              className="ml-4 flex items-center gap-1.5 bg-white/8 border border-white/10 rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-400 hover:text-white hover:bg-white/15 transition-all">
+              <Smartphone size={12}/> Mobile
+            </button>
           </div>
           
           <div className="flex items-center gap-4 bg-indigo-500/10 p-2 px-8 rounded-2xl border border-indigo-400/30 shadow-indigo-500/10 shadow-xl">
