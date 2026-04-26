@@ -13,6 +13,27 @@ import {
   ExternalLink
 } from 'lucide-react';
 
+// --- Supabase ---
+const SUPABASE_URL = 'https://aueoxuwqjyeeqapxnyke.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF1ZW94dXdxanllZXFhcHhueWtlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNTI2OTQsImV4cCI6MjA5MjcyODY5NH0.Y9xjH9bgS5Eq6dpotqM5m92KVUGApWX5DZFLsMEQaW8';
+
+const supabaseInsert = async (payload: Record<string, unknown>) => {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/escalas`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Supabase error: ${err}`);
+  }
+};
+
 // --- Types ---
 type Day = 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab' | 'dom';
 const DAYS: Day[] = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'];
@@ -984,6 +1005,38 @@ export default function App() {
             console.error('Erro ao gerar declaração para: ' + f.nome, decErr);
           }
         }
+      }
+
+      // Salvar no Supabase (campos sem horários, CPF e nascimento)
+      const hoje = new Date();
+      const mesRef = hoje.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+      const mesRefFmt = mesRef.charAt(0).toUpperCase() + mesRef.slice(1); // "Abril/2026"
+
+      const supabasePayload: Record<string, unknown> = {
+        filial,
+        mes_referencia: mesRefFmt,
+        acao_alterar_horario: actions.alterarHorario,
+        acao_baixa_farma: actions.baixaFarma,
+        acao_inclusao_farma: actions.inclusaoFarma,
+        baixa_nome: baixaDetails.nome || null,
+        baixa_motivo: actions.baixaFarma ? baixaDetails.motivo : null,
+        baixa_filial_destino: baixaDetails.filialDestino || null,
+        qtd_farma: qtd,
+      };
+
+      pharmacists.slice(0, qtd).forEach((f, i) => {
+        const n = i + 1;
+        supabasePayload[`f${n}_nome`] = f.nome || null;
+        supabasePayload[`f${n}_tipo_inclusao`] = f.tipoInclusao || null;
+        supabasePayload[`f${n}_filial_origem`] = f.filialOrigem || null;
+        supabasePayload[`f${n}_crf`] = f.crf || null;
+      });
+
+      try {
+        await supabaseInsert(supabasePayload);
+      } catch (sbErr) {
+        // Não bloqueia o download se o Supabase falhar
+        console.error('Falha ao salvar no Supabase:', sbErr);
       }
 
       // Mostrar popup unificado de conclusão
