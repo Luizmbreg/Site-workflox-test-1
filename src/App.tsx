@@ -525,7 +525,7 @@ const fmt = (min: number) => {
 
 export default function App() {
   // --- State ---
-  const [qtd, setQtd] = useState(1);
+  const [qtd, setQtd] = useState(0);
   const [filial, setFilial] = useState('');
 
   const [actions, setActions] = useState<Actions>({
@@ -660,18 +660,18 @@ export default function App() {
     }));
   };
 
-  const updatePharmacist = (id: number, updates: Partial<Pharmacist>) => {
+  const updatePharmacist = useCallback((id: number, updates: Partial<Pharmacist>) => {
     setPharmacists(prev => prev.map(f => (f.id === id ? { ...f, ...updates } : f)));
-  };
+  }, []);
 
-  const updateFarmaSchedule = (id: number, field: 'entrada' | 'intervalo' | 'retorno' | 'saida', day: Day, val: string) => {
+  const updateFarmaSchedule = useCallback((id: number, field: 'entrada' | 'intervalo' | 'retorno' | 'saida', day: Day, val: string) => {
     setPharmacists(prev => prev.map(f => {
       if (f.id === id) {
         return { ...f, [field]: { ...f[field], [day]: val } };
       }
       return f;
     }));
-  };
+  }, []);
 
   const validarSemana = () => {
     let totalHours = Array(qtd).fill(0);
@@ -985,20 +985,30 @@ export default function App() {
         } catch (_) {}
       });
 
-      const setFMain = (f: string, v: string) => {
-        setFieldAutoSize(formMain, f, v);
+      const setFMain = (fieldName: string, v: string) => {
+        setFieldAutoSize(formMain, fieldName, v);
       };
 
-      // Preencher horários da filial
+      // Preencher horários da filial e fazer flatten imediato para liberar nomes
       DAYS.forEach(d => {
         const dayUpper = d.toUpperCase();
         setFMain(`${dayUpper}_A`, abertura[d]);
         setFMain(`${dayUpper}_S`, fechamento[d]);
       });
+      // Flatten dos campos de abertura/fechamento
+      formMain.getFields().filter(field => {
+        const name = field.getName();
+        return DAYS.some(d => name === `${d.toUpperCase()}_A` || name === `${d.toUpperCase()}_S`);
+      }).forEach(field => { try { formMain.flattenField(field); } catch (_) {} });
 
-      // Preencher dados dos farmacêuticos (F1 a F6)
-      pharmacists.slice(0, qtd).forEach((f) => {
+      // Preencher dados dos farmacêuticos um a um.
+      // Para evitar que campos com nomes duplicados no PDF se sobrescrevam,
+      // preenchemos cada farmacêutico, fazemos flatten dos campos daquele grupo
+      // e gravamos numa camada de conteúdo permanente antes de passar ao próximo.
+      for (const f of pharmacists.slice(0, qtd)) {
         const n = f.id;
+
+        // Preenche todos os campos deste farmacêutico
         setFMain(`F${n}_NOME`, f.nome);
         setFMain(`F${n}_CPF`, f.cpf);
         setFMain(`F${n}_NASC`, f.dataNascimento);
@@ -1011,7 +1021,17 @@ export default function App() {
           setFMain(`${dayPrefix}_R`, f.retorno[d]);
           setFMain(`${dayPrefix}_S`, f.saida[d]);
         });
-      });
+
+        // Flatten SOMENTE os campos deste farmacêutico para gravá-los como
+        // texto fixo na página, libertando os nomes de campo para o próximo.
+        const fieldsToFlatten = formMain.getFields().filter(field => {
+          const name = field.getName();
+          return name.startsWith(`F${n}_`);
+        });
+        for (const field of fieldsToFlatten) {
+          try { formMain.flattenField(field); } catch (_) {}
+        }
+      }
 
       const mainPdfBytes = await pdfDocMain.save();
       downloadBlob(mainPdfBytes, `Escala_${filial || 'Filial'}.pdf`);
@@ -1390,6 +1410,7 @@ export default function App() {
               <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-3">Qtd. Farmacêuticos</p>
               <select value={qtd} onChange={e => setQtd(Number(e.target.value))}
                 className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-3 text-lg font-bold outline-none text-white">
+                <option value={0} className="bg-[#1e1b4b] text-slate-400">Selecione...</option>
                 {[1,2,3,4,5,6].map(n => <option key={n} value={n} className="bg-[#1e1b4b]">{n} farmacêutico{n > 1 ? 's' : ''}</option>)}
               </select>
             </div>
@@ -1516,8 +1537,8 @@ export default function App() {
   //  DESKTOP LAYOUT (unchanged)
   // ─────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 flex items-center justify-center p-4 font-sans text-slate-100 antialiased overflow-hidden">
-      <div className="relative w-full h-full max-w-[1240px] max-h-[920px] glass-panel rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in duration-700">
+    <div className="min-h-screen font-sans text-slate-100 antialiased" style={{ background: 'linear-gradient(135deg,#0f0c29,#302b63,#24243e)' }}>
+      <div className="relative w-full max-w-[1400px] mx-auto glass-panel shadow-2xl flex flex-col animate-in fade-in duration-700" style={{ minHeight: '100vh' }}>
         
         {/* Header - Centered Filial */}
         <header className="flex flex-col items-center justify-center p-2 border-b border-white/10 shrink-0 bg-white/5 space-y-2">
@@ -1602,6 +1623,7 @@ export default function App() {
                 onChange={e => setQtd(Number(e.target.value))}
                 className="bg-transparent text-lg font-bold outline-none border-none p-0 cursor-pointer text-white w-full"
               >
+                <option value={0} className="bg-[#1e1b4b] text-slate-400">Selecione...</option>
                 {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n} className="bg-[#1e1b4b]">{n}</option>)}
               </select>
             </div>
@@ -1674,9 +1696,9 @@ export default function App() {
         </section>
 
         {/* Schedule Table Area */}
-        <div className={`flex-1 p-4 overflow-hidden flex flex-col transition-all ${!isEverythingUnlocked ? 'locked-section blur-sm' : 'unlocked-section'}`}>
-          <div className="flex-1 w-full border border-white/10 rounded-2xl overflow-hidden bg-black/30 flex flex-col shadow-2xl">
-            <div className="overflow-auto flex-1 custom-scrollbar">
+        <div className={`p-4 transition-all ${!isEverythingUnlocked ? 'locked-section' : 'unlocked-section'}`}>
+          <div className="w-full border border-white/10 rounded-2xl overflow-hidden bg-black/30 shadow-2xl">
+            <div className="w-full overflow-x-auto">
               <table className="w-full text-left text-[11px] border-collapse min-w-[1000px] table-fixed">
                 <thead className="bg-white/10 text-indigo-200 sticky top-0 uppercase tracking-tighter z-10 backdrop-blur-md">
                   <tr>
@@ -1751,6 +1773,8 @@ export default function App() {
                     const nomeUnlocked = isFarmaNomeOk(fIdx);
                     const cpfNascUnlocked = isFarmaCpfNascOk(fIdx);
                     const schedUnlocked = isFarmaScheduleOk(fIdx);
+                    // Extra dim se filial não tiver horário ainda (mas nome/cpf já ok)
+                    const schedDimmed = isFarmaCpfNascOk(fIdx) && !isFilialHoraOk;
 
                     return (
                       <React.Fragment key={f.id}>
@@ -1840,7 +1864,7 @@ export default function App() {
                               {config.label}
                             </td>
                             {DAYS.map(d => (
-                              <td key={d} className={`p-2 border-r border-white/5 w-[100px] min-w-[100px] transition-all duration-300 ${!schedUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
+                              <td key={d} className={`p-2 border-r border-white/5 w-[100px] min-w-[100px] transition-all duration-300 ${!schedUnlocked || schedDimmed ? 'opacity-10 pointer-events-none' : ''}`}>
                                 <input 
                                   type="time" 
                                   value={f[config.field][d] as string} 
@@ -1888,7 +1912,7 @@ export default function App() {
         </div>
 
         {/* Summary & Results Footer */}
-        <section className="p-4 flex gap-4 border-t border-white/10 bg-white/5 shrink-0">
+        <section className="p-4 flex gap-4 border-t border-white/10 bg-white/5">
           <div className={`flex-1 rounded-xl p-4 border font-mono text-[11px] h-32 overflow-auto custom-scrollbar transition-all ${
             validationResult.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' :
             validationResult.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-300' :
