@@ -575,6 +575,30 @@ export default function App() {
   const isStep3Done = qtd > 0;
   const isEverythingUnlocked = isStep1Done && isStep2Done && isStep3Done;
 
+  // Horário da filial preenchido em pelo menos 1 dia (abertura E fechamento)
+  const isFilialHoraOk = DAYS.some(d => abertura[d] !== '' && fechamento[d] !== '');
+
+  // Por farmacêutico: desbloqueio progressivo
+  const isFarmaNomeOk = (fIdx: number) => {
+    const f = pharmacists[fIdx];
+    // Farma 1 desbloqueado se filial + ação + qtd + horário filial ok
+    // Farma N>1 desbloqueado se Farma N-1 tiver nome+cpf+nasc+pelo menos 1 horário de entrada
+    if (fIdx === 0) return isEverythingUnlocked && isFilialHoraOk;
+    const prev = pharmacists[fIdx - 1];
+    const prevHasSchedule = DAYS.some(d => prev.entrada[d] !== '');
+    return prev.nome.trim() !== '' && prev.cpf.trim() !== '' && prev.dataNascimento.trim() !== '' && prevHasSchedule;
+  };
+
+  const isFarmaCpfNascOk = (fIdx: number) => {
+    const f = pharmacists[fIdx];
+    return isFarmaNomeOk(fIdx) && f.nome.trim() !== '';
+  };
+
+  const isFarmaScheduleOk = (fIdx: number) => {
+    const f = pharmacists[fIdx];
+    return isFarmaCpfNascOk(fIdx) && f.cpf.trim() !== '' && f.dataNascimento.trim() !== '';
+  };
+
   // --- Handlers ---
   const handleCopyRow = (row: ScheduleRow, setter: (val: ScheduleRow) => void) => {
     const val = row.seg;
@@ -1165,14 +1189,14 @@ export default function App() {
               <table className="w-full text-left text-[11px] border-collapse min-w-[1000px] table-fixed">
                 <thead className="bg-white/10 text-indigo-200 sticky top-0 uppercase tracking-tighter z-10 backdrop-blur-md">
                   <tr>
-                    <th colSpan={2} className="p-4 w-[280px] border-r border-white/5 font-black text-[10px]">Informações / Período</th>
+                    <th colSpan={2} className="p-4 w-[280px] border-r border-white/5 font-black text-[10px] text-center">Informações / Período</th>
                     {DAYS.map(day => <th key={day} className="p-2 text-center border-r border-white/5 font-black text-[10px] w-[100px] min-w-[100px]">{day.toUpperCase()}</th>)}
                     <th className="p-4 text-center w-14 min-w-[56px]"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {/* Store Status Rows */}
-                  <tr className="bg-indigo-500/5 group border-b-2 border-indigo-500/20">
+                  <tr className={`bg-indigo-500/5 group border-b-2 border-indigo-500/20 transition-all duration-300 ${!isEverythingUnlocked ? 'opacity-40 pointer-events-none' : ''}`}>
                     <td colSpan={2} className="p-4 border-r border-white/5 w-[280px]">
                       <div className="flex items-center gap-3">
                         <div className="w-1.5 h-8 bg-indigo-500 rounded-full"></div>
@@ -1196,7 +1220,7 @@ export default function App() {
                       <button onClick={() => handleCopyRow(abertura, setAbertura)} className="p-2 bg-white/5 hover:bg-white/15 rounded-xl text-slate-400 transition-all active:scale-90"><ClipboardCopy size={16} /></button>
                     </td>
                   </tr>
-                  <tr className="bg-indigo-500/5 group border-b-2 border-indigo-500/20">
+                  <tr className={`bg-indigo-500/5 group border-b-2 border-indigo-500/20 transition-all duration-300 ${!isEverythingUnlocked ? 'opacity-40 pointer-events-none' : ''}`}>
                     <td colSpan={2} className="p-4 border-r border-white/5 w-[280px]">
                       <div className="flex items-center gap-3">
                         <div className="w-1.5 h-8 bg-indigo-500 rounded-full"></div>
@@ -1222,7 +1246,7 @@ export default function App() {
                   </tr>
 
                   {/* Pharmacists Rows - Restructured for direct alignment */}
-                  {pharmacists.slice(0, qtd).map((f) => {
+                  {pharmacists.slice(0, qtd).map((f, fIdx) => {
                     const rowConfigs = [
                       { field: 'entrada' as const, label: 'Entrada' },
                       { field: 'intervalo' as const, label: 'Intervalo' },
@@ -1233,6 +1257,10 @@ export default function App() {
                     const isFocused = focusedFarmaId === f.id;
                     const isDimmed = focusedFarmaId !== null && !isFocused;
 
+                    const nomeUnlocked = isFarmaNomeOk(fIdx);
+                    const cpfNascUnlocked = isFarmaCpfNascOk(fIdx);
+                    const schedUnlocked = isFarmaScheduleOk(fIdx);
+
                     return (
                       <React.Fragment key={f.id}>
                         {rowConfigs.map((config, idx) => (
@@ -1242,25 +1270,27 @@ export default function App() {
                                 <div className="space-y-3">
                                   <div className="flex items-center gap-2">
                                     <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center font-black text-indigo-400 border border-white/10 text-[10px]">F{f.id}</div>
-                                    <div className="flex-1 min-w-0">
+                                    <div className={`flex-1 min-w-0 transition-all duration-300 ${!nomeUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
                                       <input 
                                         type="text" 
                                         placeholder="Nome"
                                         value={f.nome} 
                                         onChange={e => updatePharmacist(f.id, { nome: e.target.value })}
-                                        className="bg-transparent border-b border-white/10 text-white outline-none focus:border-indigo-400 py-0.5 font-bold text-[11px] w-full truncate"
+                                        disabled={!nomeUnlocked}
+                                        className="bg-transparent border-b border-white/10 text-white outline-none focus:border-indigo-400 py-0.5 font-bold text-[11px] w-full truncate disabled:cursor-not-allowed"
                                       />
                                     </div>
                                   </div>
                                   
-                                  <div className="space-y-1.5">
+                                  <div className={`space-y-1.5 transition-all duration-300 ${!cpfNascUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
                                     <div className="flex flex-col">
                                       <label className="text-[8px] uppercase font-bold text-slate-500">CPF:</label>
                                       <input 
                                         type="text" 
                                         value={f.cpf} 
                                         onChange={e => updatePharmacist(f.id, { cpf: e.target.value })}
-                                        className="bg-black/40 border border-white/5 rounded-md px-2 py-0.5 text-[10px] text-indigo-100 outline-none"
+                                        disabled={!cpfNascUnlocked}
+                                        className="bg-black/40 border border-white/5 rounded-md px-2 py-0.5 text-[10px] text-indigo-100 outline-none disabled:cursor-not-allowed"
                                       />
                                     </div>
                                     <div className="flex flex-col">
@@ -1269,17 +1299,19 @@ export default function App() {
                                         type="text" 
                                         value={f.dataNascimento} 
                                         onChange={e => updatePharmacist(f.id, { dataNascimento: e.target.value })}
-                                        className="bg-black/40 border border-white/5 rounded-md px-2 py-0.5 text-[10px] text-indigo-100 outline-none"
+                                        disabled={!cpfNascUnlocked}
+                                        className="bg-black/40 border border-white/5 rounded-md px-2 py-0.5 text-[10px] text-indigo-100 outline-none disabled:cursor-not-allowed"
                                       />
                                     </div>
                                   </div>
 
                                   {actions.inclusaoFarma && (
-                                    <div className="pt-2 border-t border-white/5 space-y-1.5">
+                                    <div className={`pt-2 border-t border-white/5 space-y-1.5 transition-all duration-300 ${!cpfNascUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
                                       <select 
                                         value={f.tipoInclusao}
                                         onChange={e => updatePharmacist(f.id, { tipoInclusao: e.target.value as any })}
-                                        className="bg-emerald-500/10 border border-white/10 rounded-md text-[9px] py-1 px-1.5 outline-none font-bold w-full"
+                                        disabled={!cpfNascUnlocked}
+                                        className="bg-emerald-500/10 border border-white/10 rounded-md text-[9px] py-1 px-1.5 outline-none font-bold w-full disabled:cursor-not-allowed"
                                       >
                                         <option value="Já vinculado" className="bg-[#0f172a]">Já vinculado</option>
                                         <option value="Nova contratação" className="bg-[#0f172a]">Nova Contratação</option>
@@ -1308,18 +1340,20 @@ export default function App() {
                                 </div>
                               </td>
                             )}
-                            <td className="p-3 w-[100px] text-[9px] uppercase font-black text-slate-500 border-r border-white/5 bg-indigo-500/[0.02] group-hover/row:text-indigo-300 transition-colors leading-tight min-w-[100px]">
+                            {/* Label centralizado verticalmente */}
+                            <td className="p-3 w-[100px] text-[9px] uppercase font-black text-slate-500 border-r border-white/5 bg-indigo-500/[0.02] group-hover/row:text-indigo-300 transition-colors leading-tight min-w-[100px] text-center align-middle">
                               {config.label}
                             </td>
                             {DAYS.map(d => (
-                              <td key={d} className="p-2 border-r border-white/5 w-[100px] min-w-[100px]">
+                              <td key={d} className={`p-2 border-r border-white/5 w-[100px] min-w-[100px] transition-all duration-300 ${!schedUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
                                 <input 
                                   type="time" 
                                   value={f[config.field][d] as string} 
                                   onChange={e => updateFarmaSchedule(f.id, config.field, d, e.target.value)}
                                   onFocus={() => setFocusedFarmaId(f.id)}
                                   onBlur={() => setFocusedFarmaId(null)}
-                                  className={`bg-white/5 border border-white/10 rounded-lg w-full text-center py-2 outline-none font-bold transition-all text-sm ${isFocused ? 'text-white focus:bg-indigo-500/30 focus:border-indigo-400/60 shadow-[0_0_12px_rgba(99,102,241,0.3)]' : 'text-slate-100 focus:text-white focus:bg-indigo-500/20'}`}
+                                  disabled={!schedUnlocked}
+                                  className={`bg-white/5 border border-white/10 rounded-lg w-full text-center py-2 outline-none font-bold transition-all text-sm disabled:cursor-not-allowed ${isFocused ? 'text-white focus:bg-indigo-500/30 focus:border-indigo-400/60 shadow-[0_0_12px_rgba(99,102,241,0.3)]' : 'text-slate-100 focus:text-white focus:bg-indigo-500/20'}`}
                                 />
                               </td>
                             ))}
@@ -1377,10 +1411,16 @@ export default function App() {
           <div className="flex flex-col gap-3 w-72">
             <button 
               onClick={validarSemana}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-3 rounded-lg transition-all shadow-lg shadow-indigo-900/40 flex items-center justify-center gap-2 active:scale-[0.98]"
+              disabled={!isFilialHoraOk}
+              title={!isFilialHoraOk ? 'Preencha ao menos 1 dia de abertura e fechamento da filial' : ''}
+              className={`text-white text-xs font-bold py-3 rounded-lg transition-all flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg ${
+                isFilialHoraOk
+                  ? 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-900/40'
+                  : 'bg-indigo-900/40 cursor-not-allowed opacity-50 shadow-none'
+              }`}
             >
               <CheckCircle size={14} />
-              Validar Escala
+              {isFilialHoraOk ? 'Validar Escala' : 'Preencha horário da filial'}
             </button>
             <button 
               disabled={!validationResult.canGeneratePdf}
