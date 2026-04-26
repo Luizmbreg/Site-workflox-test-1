@@ -836,54 +836,46 @@ export default function App() {
     setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
-  // ─── Assinatura via Canvas (replica o algoritmo Python) ───────────────────
+  // ─── Assinatura via Canvas ────────────────────────────────────────────────
   const gerarAssinaturaCanvas = (nome: string): Promise<Uint8Array> => {
     return new Promise((resolve) => {
-      const W = 600, H = 120;
+      const W = 700, H = 100;
       const canvas = document.createElement('canvas');
       canvas.width = W;
       canvas.height = H;
       const ctx = canvas.getContext('2d')!;
 
-      // Fundo transparente
       ctx.clearRect(0, 0, W, H);
 
-      // Fonte script cursiva — usa fontes disponíveis no browser
-      const fontSize = 44;
+      // Fonte cursiva script — reta, sem rotação
+      const fontSize = 40;
       ctx.font = `italic ${fontSize}px "Segoe Script", "Brush Script MT", "Dancing Script", cursive`;
-      ctx.fillStyle = 'rgba(55,55,60,0.92)'; // cinza escuro realista
+      ctx.fillStyle = 'rgba(50,50,55,0.90)';
       ctx.textBaseline = 'middle';
 
-      // Leve inclinação ascendente (simula transform affine do Python)
-      ctx.save();
-      ctx.transform(1, -0.08, 0.04, 1, 0, H * 0.08); // shear leve
-      ctx.rotate(-0.025 + Math.random() * 0.02); // rotação mínima aleatória
+      // Sombra sutil
+      ctx.shadowColor = 'rgba(0,0,0,0.07)';
+      ctx.shadowBlur = 1.5;
+      ctx.shadowOffsetX = 0.3;
+      ctx.shadowOffsetY = 0.3;
 
-      // Sombra sutil para dar profundidade
-      ctx.shadowColor = 'rgba(0,0,0,0.08)';
-      ctx.shadowBlur = 2;
-      ctx.shadowOffsetX = 0.5;
-      ctx.shadowOffsetY = 0.5;
+      // Sem transform — assinatura reta
+      ctx.fillText(nome, 12, H / 2);
 
-      ctx.fillText(nome, 16, H / 2 + 4);
-      ctx.restore();
-
-      // Blur suave (simula GaussianBlur radius=0.5 do Python)
-      // Fazemos via redraw em escala reduzida e volta
+      // Blur leve
       const canvas2 = document.createElement('canvas');
       canvas2.width = W;
       canvas2.height = H;
       const ctx2 = canvas2.getContext('2d')!;
-      ctx2.filter = 'blur(0.6px)';
+      ctx2.filter = 'blur(0.5px)';
       ctx2.drawImage(canvas, 0, 0);
 
-      // Crop automático (como bbox do PIL)
+      // Crop automático
       const imgData = ctx2.getImageData(0, 0, W, H);
       let minX = W, maxX = 0, minY = H, maxY = 0;
       for (let y = 0; y < H; y++) {
         for (let x = 0; x < W; x++) {
-          const a = imgData.data[(y * W + x) * 4 + 3];
-          if (a > 10) {
+          if (imgData.data[(y * W + x) * 4 + 3] > 10) {
             if (x < minX) minX = x;
             if (x > maxX) maxX = x;
             if (y < minY) minY = y;
@@ -891,76 +883,65 @@ export default function App() {
           }
         }
       }
-      const pad = 6;
-      minX = Math.max(0, minX - pad);
-      minY = Math.max(0, minY - pad);
-      maxX = Math.min(W, maxX + pad);
-      maxY = Math.min(H, maxY + pad);
-
+      const pad = 4;
+      minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+      maxX = Math.min(W, maxX + pad); maxY = Math.min(H, maxY + pad);
       const cropW = maxX - minX || W;
       const cropH = maxY - minY || H;
 
       const canvas3 = document.createElement('canvas');
-      canvas3.width = cropW;
-      canvas3.height = cropH;
-      const ctx3 = canvas3.getContext('2d')!;
-      ctx3.drawImage(canvas2, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
-
+      canvas3.width = cropW; canvas3.height = cropH;
+      canvas3.getContext('2d')!.drawImage(canvas2, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
       canvas3.toBlob(blob => {
         blob!.arrayBuffer().then(buf => resolve(new Uint8Array(buf)));
       }, 'image/png');
     });
   };
 
-  // Aplica assinatura PNG num PDF (campo ASSINATURA_T ou coordenada fixa)
+  // Aplica assinatura em duas posições do PDF de transferência:
+  // 1. Acima da linha "DIMED S.A." (canto superior esquerdo do doc)
+  // 2. Acima da linha "FARMACÊUTICO(A)" (substitui o campo F1_T de texto)
   const aplicarAssinaturaAoPdf = async (pdfBytes: Uint8Array, nome: string): Promise<Uint8Array> => {
     const pngBytes = await gerarAssinaturaCanvas(nome);
-    const { PDFDocument: PDFDoc } = await import('pdf-lib');
-    const pdfDoc = await PDFDoc.load(pdfBytes);
+    const pdfDoc = await PDFDocument.load(pdfBytes);
     const pngImage = await pdfDoc.embedPng(pngBytes);
 
     const pages = pdfDoc.getPages();
     const page = pages[0];
     const { width, height } = page.getSize();
 
-    // Tenta encontrar campo de assinatura e usar sua posição
-    const form = pdfDoc.getForm();
-    let sigX = width * 0.55;
-    let sigY = height * 0.12; // posição padrão na base do doc
-    let sigW = 180;
-    let sigH = 45;
-
-    try {
-      const sigField = form.getField('ASSINATURA_T') ?? form.getField('Assinatura') ?? form.getField('assinatura');
-      if (sigField) {
-        const widgets = (sigField as any).acroField.getWidgets();
-        if (widgets.length > 0) {
-          const rect = widgets[0].getRectangle();
-          sigX = rect.x + 4;
-          sigY = rect.y + 4;
-          sigW = rect.width - 8;
-          sigH = rect.height - 8;
-        }
-      }
-    } catch (_) {}
-
-    // Dimensiona a imagem para caber no campo mantendo proporção
+    // Proporção da imagem gerada
     const imgRatio = pngImage.width / pngImage.height;
-    const boxRatio = sigW / sigH;
-    let drawW = sigW, drawH = sigH;
-    if (imgRatio > boxRatio) { drawH = sigW / imgRatio; }
-    else { drawW = sigH * imgRatio; }
 
+    // Altura alvo da assinatura em pontos PDF (~14mm)
+    const sigH = 28;
+    const sigW = sigH * imgRatio;
+
+    // ── Posição 1: acima da linha "DIMED S.A." ──
+    // Vendo a imagem: linha DIMED fica aprox. a 88% do topo (12% do fundo em coordenadas PDF)
+    // A assinatura fica logo acima da linha → y um pouco acima
+    const dimedLineY = height * 0.882; // linha DIMED
     page.drawImage(pngImage, {
-      x: sigX,
-      y: sigY + (sigH - drawH) / 2,
-      width: drawW,
-      height: drawH,
-      opacity: 0.92,
+      x: width * 0.05,          // margem esquerda alinhada ao texto DIMED
+      y: dimedLineY + 2,        // logo acima da linha
+      width: sigW,
+      height: sigH,
+      opacity: 0.90,
     });
 
-    // Flatten o campo de assinatura se existir (remove o placeholder)
-    try { form.flatten(); } catch (_) {}
+    // ── Posição 2: acima da linha "FARMACÊUTICO(A)" ──
+    // Vendo a imagem: campo farmacêutico fica aprox. 78% do topo
+    const farmaLineY = height * 0.795;
+    page.drawImage(pngImage, {
+      x: width * 0.05,
+      y: farmaLineY + 2,
+      width: sigW,
+      height: sigH,
+      opacity: 0.90,
+    });
+
+    // Flatten todo o formulário para que campos de texto não fiquem sobrepostos
+    try { pdfDoc.getForm().flatten(); } catch (_) {}
 
     return pdfDoc.save();
   };
@@ -1079,17 +1060,8 @@ export default function App() {
             const mesAtual = hoje.toLocaleString('pt-BR', { month: 'long' });
             const mesCapitalizado = mesAtual.charAt(0).toUpperCase() + mesAtual.slice(1);
 
-            // Nome do farmacêutico no campo F1_T — usa f.nome (campo "Nome" da UI)
-            formDec.getFields().forEach(pdfField => {
-              if (pdfField.getName() === 'F1_T') {
-                try {
-                  (pdfField as any).setText(f.nome || '');
-                  for (let size = 10; size >= 4; size--) {
-                    try { (pdfField as any).setFontSize(size); break; } catch (_) {}
-                  }
-                } catch (_) {}
-              }
-            });
+            // F1_T: não preencher mais como texto — a assinatura cursiva é aplicada depois
+            // pelo aplicarAssinaturaAoPdf nas duas posições (DIMED + FARMACÊUTICO)
 
             // CRF — fonte 7 para não sobrepor o texto à esquerda
             setFDec('CRF_T', f.crf, 7);
@@ -2004,9 +1976,7 @@ export default function App() {
                 <button
                   onClick={async () => {
                     setShowSignPopup(false);
-                    // Para cada PDF pendente, gera assinatura e baixa
                     for (const p of pendingDecPdfs) {
-                      // Extrai nome do farmacêutico do nome do arquivo
                       const nomeFarma = pharmacists.find(f =>
                         f.tipoInclusao === 'Transferido' && p.nome.includes(f.nome.split(' ')[0])
                       )?.nome || p.nome;
@@ -2014,15 +1984,10 @@ export default function App() {
                         const signedBytes = await aplicarAssinaturaAoPdf(p.bytes, nomeFarma);
                         downloadBlob(signedBytes, p.nome.replace('.pdf', '_assinado.pdf'));
                       } catch (e) {
-                        // fallback: baixa sem assinatura
                         downloadBlob(p.bytes, p.nome);
                       }
                     }
-                    // Mostrar popup de conclusão
-                    const hasNewHiring = pharmacists.slice(0, qtd).some(f => f.tipoInclusao === 'Nova contratação');
-                    setDownloadedFiles([`Escala_${filial || 'Filial'}.pdf`, ...pendingDecPdfs.map(p => p.nome.replace('.pdf', '_assinado.pdf'))]);
-                    setDownloadHasNewHiring(hasNewHiring);
-                    setShowDownloadPopup(true);
+                    // Sem popup adicional — download concluído diretamente
                   }}
                   className="w-full py-4 rounded-2xl font-black text-[13px] uppercase tracking-widest text-white transition-all active:scale-[0.97] flex items-center justify-center gap-2"
                   style={{ background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', boxShadow: '0 4px 24px rgba(5,150,105,0.35)' }}
