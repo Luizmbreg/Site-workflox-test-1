@@ -83,7 +83,7 @@ interface BaixaDetails {
 // PDFs carregados da pasta public/
 // Coloque os arquivos em: public/template.pdf e public/declaracao.pdf
 const TEMPLATE_PDF_URL = '/template.pdf';
-const DECLARACAO_PDF_URL = '/Documento Transferência - Site V2.pdf';
+const DECLARACAO_PDF_URL = '/Documento Transferência - Site.pdf';
 
 const FILIAIS: Record<string, { cidade: string; endereco: string }> = {
   "1": { cidade: "PORTO ALEGRE", endereco: "R. Dr. Flores, 194" },
@@ -1363,7 +1363,7 @@ export default function App() {
   //  MOBILE LAYOUT
   // ─────────────────────────────────────────────
   if (isMobile) return (
-    <div className="min-h-screen font-sans text-slate-100 antialiased flex flex-col" style={{ background: 'linear-gradient(135deg,#0f0c29,#302b63,#24243e)' }}>
+    <div className="min-h-screen font-sans text-slate-100 antialiased flex flex-col" style={{ background: 'linear-gradient(135deg,#0f0c29,#302b63,#24243e)', colorScheme: 'dark' }}>
 
       {/* Mobile Header */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5 shrink-0">
@@ -1538,7 +1538,7 @@ export default function App() {
   //  DESKTOP LAYOUT (unchanged)
   // ─────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 flex items-center justify-center p-4 font-sans text-slate-100 antialiased overflow-hidden">
+    <div className="fixed inset-0 flex items-center justify-center p-4 font-sans text-slate-100 antialiased overflow-hidden" style={{ background: 'linear-gradient(135deg,#0f0c29,#302b63,#24243e)', colorScheme: 'dark' }}>
       <div className="relative w-full h-full max-w-[1240px] max-h-[920px] glass-panel rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in duration-700">
         
         {/* Header - Centered Filial */}
