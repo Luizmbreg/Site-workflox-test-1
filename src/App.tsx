@@ -1811,7 +1811,7 @@ export default function App() {
                                       />
                                     </div>
                                     <div className="flex flex-col">
-                                      <label className="text-[8px] uppercase font-bold text-slate-500">Nascimento:</label>
+                                      <label className="text-[8px] uppercase font-bold text-slate-500">Data de Nascimento:</label>
                                       <input 
                                         type="text" 
                                         value={f.dataNascimento} 
