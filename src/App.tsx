@@ -1352,11 +1352,19 @@ export default function App() {
               <div key={f.id} className="space-y-4">
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                   <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-3">Dados — F{f.id}</p>
-                  <MobileFarmaInfo f={f} fIdx={fIdx}/>
+                  <MobileFarmaInfo  f={f}
+                    fIdx={fIdx}
+                    actions={actions}
+                    isFarmaNomeOk={isFarmaNomeOk}
+                    isFarmaCpfNascOk={isFarmaCpfNascOk}
+                    updatePharmacist={updatePharmacist}/>
                 </div>
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                   <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-3">Horários — F{f.id}</p>
-                  <MobileScheduleDay f={f} fIdx={fIdx}/>
+                  <MobileScheduleDay f={f} f={f}
+                    fIdx={fIdx}
+                    isFarmaScheduleOk={isFarmaScheduleOk}
+                    updateFarmaSchedule={updateFarmaSchedule}/>
                 </div>
                 <div className="flex gap-3">
                   {mobileFarmaIdx > 0 && (
