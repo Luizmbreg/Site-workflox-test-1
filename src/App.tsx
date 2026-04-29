@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { motion, AnimatePresence } from 'motion/react';
+import {
+  ActionCheckboxes,
+  BaixaForm,
+  MobileScheduleDay,
+  MobileFarmaInfo,
+} from './MobileComponents';
 import { 
   ClipboardCopy, 
   Trash2, 
@@ -1231,133 +1237,6 @@ export default function App() {
     { key: 'farma',  label: 'Farmacêuticos' },
     { key: 'validar',label: 'Validar' },
   ] as const;
-
-  // ─── Shared sub-components ───
-  const ActionCheckboxes = () => (
-    <div className="grid grid-cols-1 gap-3">
-      {([
-        { key: 'alterarHorario', label: 'Alterar horário', color: 'indigo' },
-        { key: 'baixaFarma',     label: 'Baixa de farmacêutico', color: 'red' },
-        { key: 'inclusaoFarma',  label: 'Inclusão de farmacêutico', color: 'emerald' },
-      ] as const).map(({ key, label, color }) => (
-        <label key={key} className="flex items-center gap-3 cursor-pointer group">
-          <div className={`w-6 h-6 rounded-xl border-2 border-white/20 flex items-center justify-center transition-all shrink-0 ${actions[key] ? `bg-${color}-500 border-${color}-400 shadow-lg shadow-${color}-500/40` : 'bg-white/5'}`}>
-            {actions[key] && <CheckCircle size={14} className="text-white" />}
-            <input type="checkbox" checked={actions[key]} onChange={e => setActions(prev => ({ ...prev, [key]: e.target.checked }))} className="hidden" />
-          </div>
-          <span className={`text-sm font-bold uppercase transition-colors ${actions[key] ? 'text-white' : 'text-slate-400'}`}>{label}</span>
-        </label>
-      ))}
-    </div>
-  );
-
-  const BaixaForm = () => (
-    <AnimatePresence mode="wait">
-      {actions.baixaFarma ? (
-        <motion.div key="baixa" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-          className="bg-red-500/5 p-4 rounded-2xl border border-red-500/20 space-y-3">
-          <p className="text-[11px] font-bold text-red-400 uppercase tracking-widest flex items-center gap-2"><UserMinus size={14}/> Formulário de baixa</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] uppercase opacity-60 font-bold">Farmacêutico</label>
-              <input type="text" value={baixaDetails.nome} onChange={e => setBaixaDetails(p => ({ ...p, nome: e.target.value }))}
-                className="bg-white/5 border border-white/15 rounded-xl px-3 py-2 text-sm outline-none" placeholder="Nome Completo"/>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] uppercase opacity-60 font-bold">Motivo</label>
-              <select value={baixaDetails.motivo} onChange={e => setBaixaDetails(p => ({ ...p, motivo: e.target.value as any }))}
-                className="bg-white/5 border border-white/15 rounded-xl px-3 py-2 text-sm outline-none text-slate-200">
-                <option value="Desligamento" className="bg-[#0f172a]">Desligamento</option>
-                <option value="Transferência" className="bg-[#0f172a]">Transferência</option>
-              </select>
-            </div>
-          </div>
-          {baixaDetails.motivo === 'Transferência' && (
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] uppercase opacity-60 font-bold">Filial Destino</label>
-              <input type="text" value={baixaDetails.filialDestino} onChange={e => setBaixaDetails(p => ({ ...p, filialDestino: e.target.value }))}
-                className="bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-sm outline-none" placeholder="Número ou Nome da Filial"/>
-            </div>
-          )}
-        </motion.div>
-      ) : null}
-    </AnimatePresence>
-  );
-
-  // Mobile: horários em cards por dia
-  const MobileScheduleDay = ({ f, fIdx }: { f: Pharmacist; fIdx: number }) => {
-    const schedUnlocked = isFarmaScheduleOk(fIdx);
-    return (
-      <div className={`space-y-3 transition-all ${!schedUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
-        {DAYS.map(d => (
-          <div key={d} className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
-            <div className="px-4 py-2 bg-indigo-500/10 border-b border-white/5">
-              <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">{d.toUpperCase()}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3 p-3">
-              {(['entrada','intervalo','retorno','saida'] as const).map(field => (
-                <div key={field} className="flex flex-col gap-1">
-                  <label className="text-[9px] uppercase font-bold text-slate-500 capitalize">{field === 'retorno' ? 'Retorno' : field}</label>
-                  <input type="time" value={f[field][d]} onChange={e => updateFarmaSchedule(f.id, field, d, e.target.value)}
-                    className="bg-black/40 border border-white/10 rounded-xl px-2 py-2 text-sm text-white font-bold outline-none focus:border-indigo-400 focus:bg-indigo-500/10 text-center w-full"/>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  // Mobile: info card per pharmacist
-  const MobileFarmaInfo = ({ f, fIdx }: { f: Pharmacist; fIdx: number }) => {
-    const nomeUnlocked = isFarmaNomeOk(fIdx);
-    const cpfNascUnlocked = isFarmaCpfNascOk(fIdx);
-    return (
-      <div className="space-y-3">
-        <div className={`transition-all ${!nomeUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
-          <label className="text-[9px] uppercase font-bold text-slate-500">Nome</label>
-          <input type="text" placeholder="Nome completo" value={f.nome} disabled={!nomeUnlocked}
-            onChange={e => updatePharmacist(f.id, { nome: e.target.value })}
-            className="mt-1 w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-sm text-white font-bold outline-none focus:border-indigo-400 focus:bg-indigo-500/10"/>
-        </div>
-        <div className={`grid grid-cols-2 gap-3 transition-all ${!cpfNascUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
-          <div>
-            <label className="text-[9px] uppercase font-bold text-slate-500">CPF</label>
-            <input type="text" value={f.cpf} disabled={!cpfNascUnlocked} onChange={e => updatePharmacist(f.id, { cpf: e.target.value })}
-              className="mt-1 w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-400"/>
-          </div>
-          <div>
-            <label className="text-[9px] uppercase font-bold text-slate-500">Data de Nascimento</label>
-            <input type="text" value={f.dataNascimento} disabled={!cpfNascUnlocked} onChange={e => updatePharmacist(f.id, { dataNascimento: e.target.value })}
-              className="mt-1 w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-400"/>
-          </div>
-          {/* CRF sempre visível, largura total */}
-          <div className="col-span-2">
-            <label className="text-[9px] uppercase font-bold text-slate-500">CRF/RS</label>
-            <input type="text" placeholder="Ex: 690005" value={f.crf} disabled={!cpfNascUnlocked} onChange={e => updatePharmacist(f.id, { crf: e.target.value })}
-              className="mt-1 w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-400"/>
-          </div>
-        </div>
-        {actions.inclusaoFarma && (
-          <div className={`transition-all ${!cpfNascUnlocked ? 'opacity-30 pointer-events-none' : ''}`}>
-            <label className="text-[9px] uppercase font-bold text-slate-500">Tipo de Inclusão</label>
-            <select value={f.tipoInclusao} disabled={!cpfNascUnlocked} onChange={e => updatePharmacist(f.id, { tipoInclusao: e.target.value as any })}
-              className="mt-1 w-full bg-emerald-500/10 border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none font-bold">
-              <option value="Já vinculado" className="bg-[#0f172a]">Já vinculado</option>
-              <option value="Nova contratação" className="bg-[#0f172a]">Nova Contratação</option>
-              <option value="Transferido" className="bg-[#0f172a]">Transferido</option>
-            </select>
-            {/* Quando Transferido: só filial de origem */}
-            {f.tipoInclusao === 'Transferido' && (
-              <input type="text" placeholder="Filial Origem" value={f.filialOrigem} onChange={e => updatePharmacist(f.id, { filialOrigem: e.target.value })}
-                className="mt-2 w-full bg-white/5 border-l-2 border-l-amber-500 border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none"/>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
 
   // ─────────────────────────────────────────────
   //  MOBILE LAYOUT
