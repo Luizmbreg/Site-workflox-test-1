@@ -46,6 +46,221 @@ const supabaseInsert = async (payload: Record<string, unknown>) => {
   }
 };
 
+// ========================================
+// GESTÃO DE FARMACÊUTICOS POR FILIAL
+// ========================================
+
+interface FarmaceuticoFilial {
+  filial: string;
+  nome: string;
+  crf: string;
+  tipo_vinculo: 'Já vinculado' | 'Nova contratação' | 'Transferido';
+  filial_origem?: string;
+  data_atualizacao: string;
+}
+
+// Atualizar farmacêuticos de uma filial
+const atualizarFarmaceuticosFilial = async (
+  filial: string,
+  farmaceuticos: Array<{ nome: string; crf: string; tipoInclusao: string; filialOrigem?: string }>
+) => {
+  try {
+    // 1. Buscar farmacêuticos atuais da filial
+    const resGet = await fetch(
+      `${SUPABASE_URL}/rest/v1/farmaceuticos_por_filial?filial=eq.${filial}`,
+      {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        }
+      }
+    );
+    
+    const farmaceuticosAtuais = resGet.ok ? await resGet.json() : [];
+    const nomesAtuais = new Set(farmaceuticosAtuais.map((f: FarmaceuticoFilial) => f.nome));
+
+    // 2. Deletar farmacêuticos que não estão mais na lista
+    const nomesNovos = new Set(farmaceuticos.map(f => f.nome).filter(Boolean));
+    
+    for (const farmAtual of farmaceuticosAtuais) {
+      if (!nomesNovos.has(farmAtual.nome)) {
+        await fetch(
+          `${SUPABASE_URL}/rest/v1/farmaceuticos_por_filial?filial=eq.${filial}&nome=eq.${encodeURIComponent(farmAtual.nome)}`,
+          {
+            method: 'DELETE',
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            }
+          }
+        );
+      }
+    }
+
+    // 3. Inserir ou atualizar cada farmacêutico
+    for (const farm of farmaceuticos) {
+      if (!farm.nome) continue; // Ignora se não tem nome
+
+      const payload: FarmaceuticoFilial = {
+        filial,
+        nome: farm.nome,
+        crf: farm.crf || '',
+        tipo_vinculo: farm.tipoInclusao as any || 'Já vinculado',
+        filial_origem: farm.filialOrigem || null,
+        data_atualizacao: new Date().toISOString()
+      };
+
+      if (nomesAtuais.has(farm.nome)) {
+        // Atualizar existente
+        await fetch(
+          `${SUPABASE_URL}/rest/v1/farmaceuticos_por_filial?filial=eq.${filial}&nome=eq.${encodeURIComponent(farm.nome)}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify(payload)
+          }
+        );
+      } else {
+        // Inserir novo
+        await fetch(
+          `${SUPABASE_URL}/rest/v1/farmaceuticos_por_filial`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify(payload)
+          }
+        );
+      }
+    }
+
+    console.log(`✅ Farmacêuticos da filial ${filial} atualizados com sucesso`);
+  } catch (error) {
+    console.error(`❌ Erro ao atualizar farmacêuticos da filial ${filial}:`, error);
+  }
+};
+
+// Processar transferências
+const processarTransferencias = async (
+  farmaceuticos: Array<{ nome: string; crf: string; tipoInclusao: string; filialOrigem: string }>,
+  filialDestino: string
+) => {
+  const transferidos = farmaceuticos.filter(f => f.tipoInclusao === 'Transferido' && f.filialOrigem);
+
+  for (const farm of transferidos) {
+    if (!farm.nome || !farm.filialOrigem) continue;
+
+    try {
+      // 1. Remover da filial de origem
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/farmaceuticos_por_filial?filial=eq.${farm.filialOrigem}&nome=eq.${encodeURIComponent(farm.nome)}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          }
+        }
+      );
+
+      console.log(`🔄 Farmacêutico ${farm.nome} removido da filial ${farm.filialOrigem}`);
+
+    } catch (error) {
+      console.error(`❌ Erro ao processar transferência de ${farm.nome}:`, error);
+    }
+  }
+};
+
+// Processar baixas (desligamentos e transferências de saída)
+const processarBaixas = async (
+  filial: string,
+  baixaDetails: { nome: string; motivo: string; filialDestino?: string }
+) => {
+  if (!baixaDetails.nome) return;
+
+  try {
+    if (baixaDetails.motivo === 'Desligamento') {
+      // Remover da filial
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/farmaceuticos_por_filial?filial=eq.${filial}&nome=eq.${encodeURIComponent(baixaDetails.nome)}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          }
+        }
+      );
+      console.log(`🗑️ Farmacêutico ${baixaDetails.nome} desligado da filial ${filial}`);
+    } 
+    else if (baixaDetails.motivo === 'Transferência' && baixaDetails.filialDestino) {
+      // Remover da filial atual
+      const resGet = await fetch(
+        `${SUPABASE_URL}/rest/v1/farmaceuticos_por_filial?filial=eq.${filial}&nome=eq.${encodeURIComponent(baixaDetails.nome)}`,
+        {
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          }
+        }
+      );
+
+      if (resGet.ok) {
+        const [farmaceutico] = await resGet.json();
+        
+        if (farmaceutico) {
+          // Deletar da origem
+          await fetch(
+            `${SUPABASE_URL}/rest/v1/farmaceuticos_por_filial?filial=eq.${filial}&nome=eq.${encodeURIComponent(baixaDetails.nome)}`,
+            {
+              method: 'DELETE',
+              headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              }
+            }
+          );
+
+          // Adicionar no destino
+          await fetch(
+            `${SUPABASE_URL}/rest/v1/farmaceuticos_por_filial`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'Prefer': 'return=minimal'
+              },
+              body: JSON.stringify({
+                filial: baixaDetails.filialDestino,
+                nome: farmaceutico.nome,
+                crf: farmaceutico.crf,
+                tipo_vinculo: 'Transferido',
+                filial_origem: filial,
+                data_atualizacao: new Date().toISOString()
+              })
+            }
+          );
+
+          console.log(`🔄 Farmacêutico ${baixaDetails.nome} transferido de ${filial} para ${baixaDetails.filialDestino}`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`❌ Erro ao processar baixa de ${baixaDetails.nome}:`, error);
+  }
+};
+
 // --- Types ---
 type Day = 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab' | 'dom';
 const DAYS: Day[] = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'];
@@ -1179,6 +1394,36 @@ export default function App() {
 
       try {
         await supabaseInsert(supabasePayload);
+        
+        // ========================================
+        // GESTÃO DE FARMACÊUTICOS POR FILIAL
+        // ========================================
+        
+        // 1. Processar baixas primeiro (se houver)
+        if (actions.baixaFarma && baixaDetails.nome) {
+          await processarBaixas(filial, baixaDetails);
+        }
+        
+        // 2. Processar transferências (remover da filial de origem)
+        await processarTransferencias(
+          pharmacists.slice(0, qtd),
+          filial
+        );
+        
+        // 3. Atualizar lista de farmacêuticos da filial atual
+        const farmaceuticosParaSalvar = pharmacists.slice(0, qtd)
+          .filter(f => f.nome) // Apenas farmacêuticos com nome
+          .map(f => ({
+            nome: f.nome,
+            crf: f.crf,
+            tipoInclusao: f.tipoInclusao,
+            filialOrigem: f.filialOrigem
+          }));
+        
+        await atualizarFarmaceuticosFilial(filial, farmaceuticosParaSalvar);
+        
+        console.log('✅ Banco de dados de farmacêuticos atualizado com sucesso!');
+        
       } catch (sbErr) {
         // Não bloqueia o download se o Supabase falhar
         console.error('Falha ao salvar no Supabase:', sbErr);
@@ -1248,7 +1493,7 @@ export default function App() {
         <div 
           className="absolute inset-0"
           style={{ 
-            backgroundImage: 'url("https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D")',
+            backgroundImage: 'url("https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1920&q=80")',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat'
@@ -1454,7 +1699,7 @@ export default function App() {
         <div 
           className="absolute inset-0"
           style={{ 
-            backgroundImage: 'url("https://images.pexels.com/photos/13067022/pexels-photo-13067022.jpeg?_gl=1*13u05tx*_ga*MTcyOTgxOTExMi4xNzc3NjkwNTEy*_ga_8JE65Q40S6*czE3Nzc2OTA1MTIkbzEkZzEkdDE3Nzc2OTA1MTckajU1JGwwJGgw")',
+            backgroundImage: 'url("https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1920&q=80")',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat'
