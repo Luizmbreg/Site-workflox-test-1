@@ -1242,7 +1242,25 @@ export default function App() {
   //  MOBILE LAYOUT
   // ─────────────────────────────────────────────
   if (isMobile) return (
-    <div className="min-h-screen font-sans text-slate-100 antialiased flex flex-col" style={{ background: 'linear-gradient(135deg,#0f0c29,#302b63,#24243e)', colorScheme: 'dark' }}>
+    <div className="min-h-screen font-sans text-slate-100 antialiased flex flex-col relative" style={{ colorScheme: 'dark' }}>
+      {/* Background com imagem e gradiente overlay */}
+      <div className="fixed inset-0 -z-10">
+        <div 
+          className="absolute inset-0"
+          style={{ 
+            backgroundImage: 'url("https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1920&q=80")',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat'
+          }}
+        />
+        <div 
+          className="absolute inset-0" 
+          style={{ 
+            background: 'linear-gradient(135deg, rgba(15,12,41,0.95), rgba(48,43,99,0.92), rgba(36,36,62,0.95))'
+          }}
+        />
+      </div>
 
       {/* Mobile Header */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5 shrink-0">
@@ -1430,8 +1448,36 @@ export default function App() {
   //  DESKTOP LAYOUT (unchanged)
   // ─────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 flex items-center justify-center p-4 font-sans text-slate-100 antialiased overflow-hidden" style={{ background: 'linear-gradient(135deg,#0f0c29,#302b63,#24243e)', colorScheme: 'dark' }}>
-      <div className="relative w-full h-full max-w-[1240px] max-h-[920px] glass-panel rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in duration-700">
+    <div className="fixed inset-0 flex items-center justify-center p-4 font-sans text-slate-100 antialiased overflow-hidden relative" style={{ colorScheme: 'dark' }}>
+      {/* Background com imagem e gradiente overlay */}
+      <div className="fixed inset-0 -z-10">
+        <div 
+          className="absolute inset-0"
+          style={{ 
+            backgroundImage: 'url("https://images.pexels.com/photos/13067022/pexels-photo-13067022.jpeg?_gl=1*13u05tx*_ga*MTcyOTgxOTExMi4xNzc3NjkwNTEy*_ga_8JE65Q40S6*czE3Nzc2OTA1MTIkbzEkZzEkdDE3Nzc2OTA1MTckajU1JGwwJGgw")',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat'
+          }}
+        />
+        <div 
+          className="absolute inset-0" 
+          style={{ 
+            background: 'linear-gradient(135deg, rgba(15,12,41,0.95), rgba(48,43,99,0.92), rgba(36,36,62,0.95))'
+          }}
+        />
+      </div>
+      
+      <div 
+        className="relative w-full h-full max-w-[1240px] max-h-[920px] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in duration-700"
+        style={{
+          background: 'rgba(15, 12, 41, 0.4)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)'
+        }}
+      >
         
         {/* Header - Centered Filial */}
         <header className="flex flex-col items-center justify-center p-2 border-b border-white/10 shrink-0 bg-white/5 space-y-2">
