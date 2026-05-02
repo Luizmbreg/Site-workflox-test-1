@@ -1284,7 +1284,7 @@ export default function App() {
             </div>
             <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
               <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-3">Ações</p>
-              <ActionCheckboxes/>
+              <ActionCheckboxes actions={actions} setActions={setActions}/>
             </div>
             <div className={`bg-white/5 border border-white/10 rounded-2xl p-4 transition-all ${!isStep2Done ? 'opacity-40 pointer-events-none' : ''}`}>
               <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-3">Qtd. Farmacêuticos</p>
@@ -1294,7 +1294,12 @@ export default function App() {
                 {[1,2,3,4,5,6].map(n => <option key={n} value={n} className="bg-[#1e1b4b]">{n} farmacêutico{n > 1 ? 's' : ''}</option>)}
               </select>
             </div>
-            <BaixaForm/>
+            {actions.baixaFarma && (
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                <p className="text-[9px] font-black text-red-400 uppercase tracking-widest mb-3">Formulário de Baixa</p>
+                <BaixaForm baixaDetails={baixaDetails} setBaixaDetails={setBaixaDetails}/>
+              </div>
+            )}
             <button onClick={() => setMobileTab('filial')}
               className="w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest text-white flex items-center justify-center gap-2 active:scale-[0.97] transition-all"
               style={{ background: isStep1Done && isStep2Done ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : 'rgba(255,255,255,0.05)', opacity: isStep1Done && isStep2Done ? 1 : 0.4 }}>
